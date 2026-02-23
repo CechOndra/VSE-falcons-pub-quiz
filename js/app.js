@@ -6,6 +6,9 @@
   let teams  = [];     // [{id, name}]
   let scores = [];     // [{team_id, round_number, standard_points, tipovacka_point}]
 
+  // Sort state: { col: 'total' | round number, dir: 'desc' | 'asc' }
+  var sortState = { col: 'total', dir: 'desc' };
+
   // ---- DOM refs ----
   const roundIndicator = document.getElementById('roundIndicator');
   const standingsBody  = document.getElementById('standingsBody');
@@ -61,7 +64,25 @@
     });
 
     var list = Object.values(map);
-    list.sort(function (a, b) { return b.total - a.total; });
+    // Sort by selected column
+    var col = sortState.col;
+    var dir = sortState.dir === 'desc' ? 1 : -1;
+    list.sort(function (a, b) {
+      var aVal, bVal;
+      if (col === 'total') {
+        aVal = a.total;
+        bVal = b.total;
+      } else {
+        var aRd = a.rounds[col];
+        var bRd = b.rounds[col];
+        aVal = aRd ? aRd.std + aRd.tip : 0;
+        bVal = bRd ? bRd.std + bRd.tip : 0;
+      }
+      if (aVal !== bVal) return (bVal - aVal) * dir;
+      // Tiebreak by total if sorting by round
+      if (col !== 'total') return b.total - a.total;
+      return 0;
+    });
     return list;
   }
 
@@ -125,13 +146,30 @@
 
     var tipovacka = config.has_tipovacka || [];
 
-    // Header
+    // Header with sortable columns
     var headHtml = '<tr><th>#</th><th>Team</th>';
     scored.forEach(function (r) {
-      headHtml += '<th class="text-center">R' + r + '</th>';
+      var arrow = sortState.col === r ? (sortState.dir === 'desc' ? ' \u25BC' : ' \u25B2') : '';
+      headHtml += '<th class="text-center sortable" data-sort-col="' + r + '">R' + r + arrow + '</th>';
     });
-    headHtml += '<th class="text-right">Total</th></tr>';
+    var totalArrow = sortState.col === 'total' ? (sortState.dir === 'desc' ? ' \u25BC' : ' \u25B2') : '';
+    headHtml += '<th class="text-right sortable" data-sort-col="total">Total' + totalArrow + '</th></tr>';
     breakdownHead.innerHTML = headHtml;
+
+    // Attach click handlers to sortable headers
+    breakdownHead.querySelectorAll('.sortable').forEach(function (th) {
+      th.addEventListener('click', function () {
+        var col = th.getAttribute('data-sort-col');
+        col = col === 'total' ? 'total' : parseInt(col, 10);
+        if (sortState.col === col) {
+          sortState.dir = sortState.dir === 'desc' ? 'asc' : 'desc';
+        } else {
+          sortState.col = col;
+          sortState.dir = 'desc';
+        }
+        render();
+      });
+    });
 
     // Body
     var bodyHtml = '';

@@ -41,7 +41,7 @@ body.has-bg-logo::before {
   width: 500px;
   height: 500px;
   background: url('../photos/VSE Falcons logo noCircle 1000x1000.png') center/contain no-repeat;
-  opacity: 0.04;
+  opacity: 0.08;
   pointer-events: none;
   z-index: 0;
 }
@@ -141,12 +141,24 @@ thead th {
   border-bottom: 2px solid var(--accent);
 }
 
+thead th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+thead th.sortable:hover {
+  color: var(--accent);
+}
+
 tbody td {
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--border);
 }
 
-tbody tr:nth-child(even) {
+tbody tr:last-child td {
+  border-bottom: 1px solid var(--border);
+}
+
+tbody tr:nth-child(odd) {
   background: var(--row-alt);
 }
 
@@ -382,7 +394,6 @@ input[type="file"] {
 .partners {
   margin-top: 3rem;
   padding-top: 1.5rem;
-  border-top: 1px solid var(--border);
   text-align: center;
   padding-bottom: 2rem;
 }
