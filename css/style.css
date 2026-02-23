@@ -1,0 +1,357 @@
+/* ============================================================
+   Pub Quiz Scoreboard — Styles
+   Colors: bg #0f1a36, card #11305f, accent #009fe3,
+           text #d6dde8, white #ffffff
+   ============================================================ */
+
+:root {
+  --bg:      #0f1a36;
+  --card:    #11305f;
+  --accent:  #009fe3;
+  --navy:    #11305f;
+  --text:    #d6dde8;
+  --white:   #ffffff;
+  --border:  #1a3a6a;
+  --row-alt: rgba(17, 48, 95, 0.45);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+               Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ---- Layout ---- */
+
+.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+/* ---- Navigation / Header ---- */
+
+.navbar {
+  background: var(--card);
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid var(--accent);
+}
+
+.navbar h1 {
+  font-size: 1.25rem;
+  color: var(--white);
+  font-weight: 700;
+}
+
+.navbar a {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.875rem;
+}
+.navbar a:hover { text-decoration: underline; }
+
+/* ---- Tabs / Toggle ---- */
+
+.tabs {
+  display: flex;
+  gap: 0;
+  margin: 1.5rem 0 1rem;
+  border-bottom: 2px solid var(--border);
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  color: var(--text);
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tab-btn:hover { color: var(--white); }
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+/* ---- Round indicator ---- */
+
+.round-indicator {
+  text-align: center;
+  color: var(--accent);
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+  letter-spacing: 0.05em;
+}
+
+/* ---- Tables ---- */
+
+.table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 2rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+thead th {
+  background: var(--card);
+  color: var(--white);
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  white-space: nowrap;
+  border-bottom: 2px solid var(--accent);
+}
+
+tbody td {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+tbody tr:nth-child(even) {
+  background: var(--row-alt);
+}
+
+tbody tr:hover {
+  background: rgba(0, 159, 227, 0.08);
+}
+
+/* Top-3 highlight */
+tbody tr.rank-1 td,
+tbody tr.rank-2 td,
+tbody tr.rank-3 td {
+  border-left: 3px solid var(--accent);
+}
+tbody tr.rank-1 td:first-child { font-weight: 700; color: var(--white); }
+tbody tr.rank-2 td:first-child { font-weight: 600; }
+tbody tr.rank-3 td:first-child { font-weight: 600; }
+
+.text-right  { text-align: right; }
+.text-center { text-align: center; }
+
+/* ---- Cards / Sections ---- */
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.card h2 {
+  color: var(--accent);
+  font-size: 1.1rem;
+  margin-bottom: 0.75rem;
+}
+
+/* ---- Forms ---- */
+
+label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text);
+  margin-bottom: 0.25rem;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+select,
+textarea {
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.9rem;
+  color: var(--white);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 0.75rem;
+  font-family: inherit;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(0, 159, 227, 0.25);
+}
+
+textarea { resize: vertical; min-height: 100px; }
+
+input[type="number"] { width: 80px; }
+
+/* Inline number inputs inside score tables */
+.score-input {
+  width: 60px;
+  text-align: center;
+  margin-bottom: 0;
+}
+
+/* ---- Buttons ---- */
+
+.btn {
+  display: inline-block;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  font-weight: 600;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--white);
+}
+.btn-primary:hover { opacity: 0.85; }
+
+.btn-danger {
+  background: #c0392b;
+  color: var(--white);
+}
+.btn-danger:hover { opacity: 0.85; }
+
+.btn-secondary {
+  background: var(--border);
+  color: var(--text);
+}
+.btn-secondary:hover { opacity: 0.85; }
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---- Radio / Checkbox custom ---- */
+
+input[type="radio"] {
+  accent-color: var(--accent);
+}
+
+/* ---- Checkbox toggle for Tipovacka ---- */
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.toggle-row input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 16px;
+  height: 16px;
+}
+
+/* ---- Messages / Alerts ---- */
+
+.msg {
+  padding: 0.6rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+.msg-success { background: rgba(39, 174, 96, 0.15); color: #27ae60; border: 1px solid #27ae60; }
+.msg-error   { background: rgba(192, 57, 43, 0.15); color: #e74c3c; border: 1px solid #c0392b; }
+.msg-info    { background: rgba(0, 159, 227, 0.10); color: var(--accent); border: 1px solid var(--accent); }
+
+.hidden { display: none !important; }
+
+/* ---- Login form centering ---- */
+
+.login-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 60px);
+}
+
+.login-box {
+  width: 100%;
+  max-width: 380px;
+}
+
+/* ---- Loading spinner ---- */
+
+.spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  vertical-align: middle;
+  margin-left: 0.4rem;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---- Admin layout helpers ---- */
+
+.admin-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.admin-bar select {
+  width: auto;
+  margin-bottom: 0;
+}
+
+/* ---- CSV section ---- */
+
+.csv-section {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+/* ---- File input ---- */
+
+input[type="file"] {
+  color: var(--text);
+  font-size: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+/* ---- Responsive ---- */
+
+@media (max-width: 600px) {
+  .navbar h1 { font-size: 1rem; }
+  .container { padding: 0 0.5rem; }
+  table { font-size: 0.8rem; }
+  thead th, tbody td { padding: 0.4rem 0.5rem; }
+  .card { padding: 0.75rem; }
+  .btn { padding: 0.45rem 0.9rem; font-size: 0.85rem; }
+  .score-input { width: 50px; }
+}

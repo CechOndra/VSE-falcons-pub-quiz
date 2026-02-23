@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pub Quiz Scoreboard</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <nav class="navbar">
+    <h1>Pub Quiz Scoreboard</h1>
+    <a href="admin.html">Admin</a>
+  </nav>
+
+  <div class="container">
+    <div class="round-indicator" id="roundIndicator"></div>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-view="standings">Overall Standings</button>
+      <button class="tab-btn" data-view="breakdown">Round Breakdown</button>
+    </div>
+
+    <!-- Overall Standings -->
+    <div id="view-standings">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Team</th>
+              <th class="text-right">Points</th>
+            </tr>
+          </thead>
+          <tbody id="standingsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Per-Round Breakdown -->
+    <div id="view-breakdown" class="hidden">
+      <div class="table-wrap">
+        <table>
+          <thead id="breakdownHead"></thead>
+          <tbody id="breakdownBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <p id="noData" class="hidden" style="text-align:center;margin-top:2rem;color:var(--text);">
+      No quiz data yet. Waiting for the admin to set things up.
+    </p>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Pub Quiz Scoreboard</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <nav class="navbar">
+    <h1>Admin Panel</h1>
+    <div>
+      <a href="index.html" style="margin-right:1rem;">Scoreboard</a>
+      <button class="btn btn-secondary hidden" id="signOutBtn" style="padding:0.3rem 0.75rem;font-size:0.8rem;">Sign out</button>
+    </div>
+  </nav>
+
+  <!-- Login -->
+  <div id="loginSection" class="login-wrapper">
+    <div class="login-box card">
+      <h2>Admin Login</h2>
+      <div id="loginMsg"></div>
+      <label for="loginEmail">Email</label>
+      <input type="email" id="loginEmail" autocomplete="email">
+      <label for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" autocomplete="current-password">
+      <button class="btn btn-primary" id="loginBtn" style="width:100%;">Sign in</button>
+    </div>
+  </div>
+
+  <!-- Dashboard (hidden until auth) -->
+  <div id="dashboard" class="container hidden" style="padding-top:1.5rem;">
+
+    <!-- Quiz Setup -->
+    <div id="setupSection" class="card hidden">
+      <h2>Quiz Setup</h2>
+      <div id="setupMsg"></div>
+
+      <label for="setupRounds">Number of rounds</label>
+      <input type="number" id="setupRounds" value="5" min="1" max="20">
+
+      <label for="setupQuestions">Questions per round</label>
+      <input type="number" id="setupQuestions" value="10" min="1" max="50">
+
+      <label>Tipovacka (bonus question per round)</label>
+      <div class="toggle-row">
+        <input type="checkbox" id="setupTipAll" checked>
+        <label for="setupTipAll" style="display:inline;margin:0;">Enable Tipovacka for all rounds</label>
+      </div>
+      <div id="perRoundTip" class="hidden" style="margin-bottom:0.75rem;"></div>
+
+      <label for="setupTeams">Team names (one per line, max 30)</label>
+      <textarea id="setupTeams" rows="8" placeholder="Team Alpha&#10;Team Beta&#10;Team Gamma"></textarea>
+
+      <button class="btn btn-primary" id="setupSaveBtn">Save Setup</button>
+    </div>
+
+    <!-- Config locked banner -->
+    <div id="configBanner" class="card hidden">
+      <h2>Quiz Configured</h2>
+      <p id="configSummary"></p>
+      <button class="btn btn-danger" id="resetBtn" style="margin-top:0.75rem;">Reset Quiz</button>
+    </div>
+
+    <!-- Score Entry -->
+    <div id="scoreSection" class="card hidden">
+      <h2>Enter Scores</h2>
+      <div id="scoreMsg"></div>
+
+      <div class="admin-bar">
+        <label for="roundSelect" style="margin:0;">Round:</label>
+        <select id="roundSelect"></select>
+        <button class="btn btn-primary" id="saveRoundBtn">Save Round</button>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Team</th>
+              <th class="text-center">Points (0-<span id="maxPtsLabel">10</span>)</th>
+              <th class="text-center hidden" id="tipHeader">Tipovacka</th>
+            </tr>
+          </thead>
+          <tbody id="scoreBody"></tbody>
+        </table>
+      </div>
+
+      <!-- CSV Import -->
+      <div class="csv-section">
+        <h2>CSV Import</h2>
+        <p style="font-size:0.8rem;margin-bottom:0.5rem;">
+          Format: team name, standard points[, tipovacka 0/1]. One row per team.
+        </p>
+        <input type="file" id="csvFile" accept=".csv,text/csv">
+        <textarea id="csvText" rows="4" placeholder="Paste CSV here (optional)"></textarea>
+        <button class="btn btn-secondary" id="csvImportBtn">Import CSV</button>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div id="summarySection" class="card hidden">
+      <h2>Score Summary</h2>
+      <div class="table-wrap">
+        <table>
+          <thead id="summaryHead"></thead>
+          <tbody id="summaryBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>
