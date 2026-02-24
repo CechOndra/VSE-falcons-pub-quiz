@@ -17,9 +17,10 @@ CREATE TABLE quiz_config (
 );
 
 CREATE TABLE teams (
-  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name       text NOT NULL UNIQUE,
-  created_at timestamptz NOT NULL DEFAULT now()
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name         text NOT NULL UNIQUE,
+  player_count int NOT NULL DEFAULT 1,
+  created_at   timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE scores (

@@ -41,6 +41,11 @@
   const csvText       = document.getElementById('csvText');
   const csvImportBtn  = document.getElementById('csvImportBtn');
 
+  const teamsSection   = document.getElementById('teamsSection');
+  const teamsBody      = document.getElementById('teamsBody');
+  const teamsMsg       = document.getElementById('teamsMsg');
+  const saveTeamsBtn   = document.getElementById('saveTeamsBtn');
+
   const summarySection = document.getElementById('summarySection');
   const summaryHead    = document.getElementById('summaryHead');
   const summaryBody    = document.getElementById('summaryBody');
@@ -112,6 +117,7 @@
       setupSection.classList.remove('hidden');
       configBanner.classList.add('hidden');
       scoreSection.classList.add('hidden');
+      teamsSection.classList.add('hidden');
       summarySection.classList.add('hidden');
       return;
     }
@@ -132,8 +138,52 @@
       + tipCount + ' rounds with Tipovacka.';
 
     showScoreSection();
+    renderTeamsSection();
     await loadAllScores();
   }
+
+  function renderTeamsSection() {
+    if (teams.length === 0) { teamsSection.classList.add('hidden'); return; }
+    teamsSection.classList.remove('hidden');
+    var html = '';
+    teams.forEach(function (t) {
+      html += '<tr>'
+        + '<td>' + escHtml(t.name) + '</td>'
+        + '<td class="text-center"><input type="number" class="score-input" min="1" step="1" '
+        + 'data-team-id="' + t.id + '" value="' + (t.player_count || 1) + '"></td>'
+        + '</tr>';
+    });
+    teamsBody.innerHTML = html;
+  }
+
+  saveTeamsBtn.addEventListener('click', async function () {
+    saveTeamsBtn.disabled = true;
+    var inputs = teamsBody.querySelectorAll('input[data-team-id]');
+    var updates = [];
+    for (var i = 0; i < inputs.length; i++) {
+      var id = inputs[i].getAttribute('data-team-id');
+      var count = parseInt(inputs[i].value, 10);
+      if (isNaN(count) || count < 1) {
+        showMsg(teamsMsg, 'Invalid player count for a team.', 'error');
+        saveTeamsBtn.disabled = false;
+        return;
+      }
+      updates.push({ id: id, player_count: count });
+    }
+    for (var i = 0; i < updates.length; i++) {
+      var { error } = await db.from('teams').update({ player_count: updates[i].player_count }).eq('id', updates[i].id);
+      if (error) {
+        showMsg(teamsMsg, error.message, 'error');
+        saveTeamsBtn.disabled = false;
+        return;
+      }
+    }
+    showMsg(teamsMsg, 'Player counts saved.', 'success');
+    saveTeamsBtn.disabled = false;
+    // Refresh teams data
+    var { data: t } = await db.from('teams').select('*').order('name');
+    teams = t || [];
+  });
 
   // Per-round Tipovacka toggles when "all rounds" is unchecked
   setupTipAll.addEventListener('change', updateTipToggles);
@@ -171,14 +221,24 @@
       }
     }
 
-    // Parse team names
+    // Parse teams: "Name, PlayerCount" per line
     var lines = setupTeams.value.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
-    if (lines.length === 0) { showMsg(setupMsg, 'Enter at least one team name.', 'error'); return; }
+    if (lines.length === 0) { showMsg(setupMsg, 'Enter at least one team.', 'error'); return; }
     if (lines.length > 30) { showMsg(setupMsg, 'Maximum 30 teams.', 'error'); return; }
 
+    var parsedTeams = [];
+    for (var i = 0; i < lines.length; i++) {
+      var parts = lines[i].split(',');
+      var tName = parts[0].trim();
+      var count = parts.length > 1 ? parseInt(parts[parts.length - 1].trim(), 10) : 1;
+      if (!tName) { showMsg(setupMsg, 'Empty team name on line ' + (i + 1) + '.', 'error'); return; }
+      if (isNaN(count) || count < 1) { showMsg(setupMsg, 'Invalid player count on line ' + (i + 1) + '. Use: Name, Number', 'error'); return; }
+      parsedTeams.push({ name: tName, player_count: count });
+    }
+
     // Check for duplicate names
-    var unique = new Set(lines);
-    if (unique.size !== lines.length) { showMsg(setupMsg, 'Duplicate team names found.', 'error'); return; }
+    var unique = new Set(parsedTeams.map(function (t) { return t.name; }));
+    if (unique.size !== parsedTeams.length) { showMsg(setupMsg, 'Duplicate team names found.', 'error'); return; }
 
     setupSaveBtn.disabled = true;
 
@@ -189,7 +249,7 @@
     if (cfgErr) { showMsg(setupMsg, cfgErr.message, 'error'); setupSaveBtn.disabled = false; return; }
 
     // Save teams
-    var teamRows = lines.map(function (name) { return { name: name }; });
+    var teamRows = parsedTeams.map(function (t) { return { name: t.name, player_count: t.player_count }; });
     var { error: teamErr } = await db.from('teams').insert(teamRows);
     if (teamErr) { showMsg(setupMsg, teamErr.message, 'error'); setupSaveBtn.disabled = false; return; }
 

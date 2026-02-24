@@ -50,8 +50,8 @@
       </div>
       <div id="perRoundTip" class="hidden" style="margin-bottom:0.75rem;"></div>
 
-      <label for="setupTeams">Team names (one per line, max 30)</label>
-      <textarea id="setupTeams" rows="8" placeholder="Team Alpha&#10;Team Beta&#10;Team Gamma"></textarea>
+      <label for="setupTeams">Teams — one per line: Name, PlayerCount (max 30)</label>
+      <textarea id="setupTeams" rows="8" placeholder="Team Alpha, 5&#10;Team Beta, 4&#10;Team Gamma, 6"></textarea>
 
       <button class="btn btn-primary" id="setupSaveBtn">Save Setup</button>
     </div>
@@ -74,6 +74,17 @@
         <button class="btn btn-primary" id="saveRoundBtn">Save Round</button>
       </div>
 
+      <!-- CSV Import -->
+      <div class="csv-section" style="margin-top:0;">
+        <h2>CSV Import</h2>
+        <p style="font-size:0.8rem;margin-bottom:0.5rem;">
+          Format: team name, standard points[, tipovacka 0/1]. One row per team.
+        </p>
+        <input type="file" id="csvFile" accept=".csv,text/csv">
+        <textarea id="csvText" rows="4" placeholder="Paste CSV here (optional)"></textarea>
+        <button class="btn btn-secondary" id="csvImportBtn">Import CSV</button>
+      </div>
+
       <div class="table-wrap">
         <table>
           <thead>
@@ -86,17 +97,24 @@
           <tbody id="scoreBody"></tbody>
         </table>
       </div>
+    </div>
 
-      <!-- CSV Import -->
-      <div class="csv-section">
-        <h2>CSV Import</h2>
-        <p style="font-size:0.8rem;margin-bottom:0.5rem;">
-          Format: team name, standard points[, tipovacka 0/1]. One row per team.
-        </p>
-        <input type="file" id="csvFile" accept=".csv,text/csv">
-        <textarea id="csvText" rows="4" placeholder="Paste CSV here (optional)"></textarea>
-        <button class="btn btn-secondary" id="csvImportBtn">Import CSV</button>
+    <!-- Team player counts -->
+    <div id="teamsSection" class="card hidden">
+      <h2>Team Player Counts</h2>
+      <div id="teamsMsg"></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Team</th>
+              <th class="text-center" style="width:100px;">Players</th>
+            </tr>
+          </thead>
+          <tbody id="teamsBody"></tbody>
+        </table>
       </div>
+      <button class="btn btn-primary" id="saveTeamsBtn" style="margin-top:0.5rem;">Save Player Counts</button>
     </div>
 
     <!-- Summary -->

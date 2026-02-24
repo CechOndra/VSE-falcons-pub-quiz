@@ -50,7 +50,7 @@
     // Map team_id -> {name, rounds: {roundNum: {std, tip}}, total}
     var map = {};
     teams.forEach(function (t) {
-      map[t.id] = { id: t.id, name: t.name, rounds: {}, total: 0 };
+      map[t.id] = { id: t.id, name: t.name, players: t.player_count || 1, rounds: {}, total: 0 };
     });
 
     scores.forEach(function (s) {
@@ -80,8 +80,9 @@
       }
       if (aVal !== bVal) return (bVal - aVal) * dir;
       // Tiebreak by total if sorting by round
-      if (col !== 'total') return b.total - a.total;
-      return 0;
+      if (col !== 'total' && a.total !== b.total) return b.total - a.total;
+      // Tiebreak by fewer players (fewer = higher rank)
+      return a.players - b.players;
     });
     return list;
   }
@@ -93,6 +94,37 @@
     var arr = Array.from(set);
     arr.sort(function (a, b) { return a - b; });
     return arr;
+  }
+
+  // Compute display ranks based on total (descending), independent of current sort
+  // Returns a map: team.id -> { num: rankNumber, label: displayString }
+  function computeRanks(standings) {
+    // Sort a copy by total desc, then fewer players
+    var sorted = standings.slice().sort(function (a, b) {
+      if (a.total !== b.total) return b.total - a.total;
+      return a.players - b.players;
+    });
+    var nums = [];
+    for (var i = 0; i < sorted.length; i++) {
+      if (i === 0) {
+        nums.push(1);
+      } else if (sorted[i].total === sorted[i - 1].total &&
+                 sorted[i].players === sorted[i - 1].players) {
+        nums.push(nums[i - 1]);
+      } else {
+        nums.push(i + 1);
+      }
+    }
+    // Mark which ranks are tied
+    var counts = {};
+    nums.forEach(function (n) { counts[n] = (counts[n] || 0) + 1; });
+    // Build lookup by team id
+    var rankMap = {};
+    sorted.forEach(function (team, i) {
+      var n = nums[i];
+      rankMap[team.id] = { num: n, label: counts[n] > 1 ? 'T-' + n : '' + n };
+    });
+    return rankMap;
   }
 
   // ---- Rendering ----
@@ -111,7 +143,6 @@
     viewStandings.classList.toggle('hidden', currentView !== 'standings');
     viewBreakdown.classList.toggle('hidden', currentView !== 'breakdown');
 
-    var standings = computeStandings();
     var scored = scoredRounds();
     var roundsScored = scored.length;
 
@@ -119,18 +150,28 @@
       ? 'Round ' + roundsScored + ' of ' + config.rounds
       : 'No rounds scored yet';
 
-    renderStandings(standings);
-    renderBreakdown(standings, scored);
+    // Standings always sorted by total descending
+    var savedState = { col: sortState.col, dir: sortState.dir };
+    sortState.col = 'total';
+    sortState.dir = 'desc';
+    renderStandings(computeStandings());
+
+    // Breakdown uses user-selected sort
+    sortState.col = savedState.col;
+    sortState.dir = savedState.dir;
+    renderBreakdown(computeStandings(), scored);
   }
 
   function renderStandings(standings) {
+    var ranks = computeRanks(standings);
     var html = '';
-    standings.forEach(function (team, i) {
-      var rank = i + 1;
-      var cls = rank <= 3 ? ' class="rank-' + rank + '"' : '';
+    standings.forEach(function (team) {
+      var r = ranks[team.id];
+      var cls = r.num <= 3 ? ' class="rank-' + r.num + '"' : '';
       html += '<tr' + cls + '>'
-        + '<td>' + rank + '</td>'
+        + '<td>' + r.label + '</td>'
         + '<td>' + escHtml(team.name) + '</td>'
+        + '<td class="text-center">' + team.players + '</td>'
         + '<td class="text-right">' + team.total + '</td>'
         + '</tr>';
     });
@@ -172,12 +213,13 @@
     });
 
     // Body
+    var ranks = computeRanks(standings);
     var bodyHtml = '';
-    standings.forEach(function (team, i) {
-      var rank = i + 1;
-      var cls = rank <= 3 ? ' class="rank-' + rank + '"' : '';
+    standings.forEach(function (team) {
+      var r = ranks[team.id];
+      var cls = r.num <= 3 ? ' class="rank-' + r.num + '"' : '';
       bodyHtml += '<tr' + cls + '>';
-      bodyHtml += '<td>' + rank + '</td>';
+      bodyHtml += '<td>' + r.label + '</td>';
       bodyHtml += '<td>' + escHtml(team.name) + '</td>';
 
       scored.forEach(function (r) {
