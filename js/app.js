@@ -9,6 +9,7 @@
   // Sort state: { col: 'total' | round number, dir: 'desc' | 'asc' }
   var sortState = { col: 'total', dir: 'desc' };
   var showPlayers = false;
+  var showShots = false;
 
   // ---- DOM refs ----
   const roundIndicator = document.getElementById('roundIndicator');
@@ -30,6 +31,7 @@
       viewStandings.classList.toggle('hidden', view !== 'standings');
       viewBreakdown.classList.toggle('hidden', view !== 'breakdown');
       togglePlayersBtn.classList.toggle('hidden', view !== 'standings');
+      toggleShotsBtn.classList.toggle('hidden', view !== 'breakdown');
     });
   });
 
@@ -37,7 +39,16 @@
   var togglePlayersBtn = document.getElementById('togglePlayersBtn');
   togglePlayersBtn.addEventListener('click', function () {
     showPlayers = !showPlayers;
-    togglePlayersBtn.textContent = showPlayers ? 'Hide Players' : 'Show number of Players';
+    togglePlayersBtn.textContent = showPlayers ? 'Hide Players' : 'Show Players';
+    render();
+  });
+
+  // ---- Toggle shots column ----
+  var toggleShotsBtn = document.getElementById('toggleShotsBtn');
+  toggleShotsBtn.classList.add('hidden');
+  toggleShotsBtn.addEventListener('click', function () {
+    showShots = !showShots;
+    toggleShotsBtn.textContent = showShots ? 'Hide Shots' : 'Show Shots';
     render();
   });
 
@@ -210,7 +221,7 @@
       var arrow = sortState.col === r ? (sortState.dir === 'desc' ? ' \u25BC' : ' \u25B2') : '';
       headHtml += '<th class="text-center sortable" data-sort-col="' + r + '">R' + r + arrow + '</th>';
     });
-    headHtml += '<th class="text-center">Shots</th>';
+    if (showShots) headHtml += '<th class="text-center">Shots</th>';
     var totalArrow = sortState.col === 'total' ? (sortState.dir === 'desc' ? ' \u25BC' : ' \u25B2') : '';
     headHtml += '<th class="text-right sortable" data-sort-col="total">Total' + totalArrow + '</th></tr>';
     breakdownHead.innerHTML = headHtml;
@@ -254,7 +265,7 @@
         }
       });
 
-      bodyHtml += '<td class="text-center">' + (team.shots ? '\u2713' : '-') + '</td>';
+      if (showShots) bodyHtml += '<td class="text-center">' + (team.shots ? '\u2713' : '-') + '</td>';
       bodyHtml += '<td class="text-right"><strong>' + team.total + '</strong></td>';
       bodyHtml += '</tr>';
     });

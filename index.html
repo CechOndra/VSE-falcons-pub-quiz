@@ -14,15 +14,14 @@
     <h1><img src="photos/VSE Falcons logo.png" alt="" style="height:1.6em;vertical-align:middle;margin-right:0.4rem;">VŠE Falcons Pub Quiz</h1>
   </nav>
 
-  <a href="admin.html" style="position:fixed;bottom:0.75rem;right:0.75rem;font-size:0.65rem;color:var(--text);opacity:0.3;text-decoration:none;z-index:10;">Edit Quiz</a>
-
   <div class="container">
     <div class="round-indicator" id="roundIndicator"></div>
 
     <div class="tabs">
       <button class="tab-btn active" data-view="standings">Standings</button>
       <button class="tab-btn" data-view="breakdown">Round Breakdown</button>
-      <button id="togglePlayersBtn" style="margin-left:auto;font-size:0.7rem;padding:0.25rem 0.5rem;background:none;border:none;color:var(--text);opacity:0.5;cursor:pointer;">Show number of Players</button>
+      <button id="togglePlayersBtn" style="margin-left:auto;font-size:0.7rem;padding:0.25rem 0.5rem;background:none;border:none;color:var(--text);opacity:0.5;cursor:pointer;">Show Players</button>
+      <button id="toggleShotsBtn" style="font-size:0.7rem;padding:0.25rem 0.5rem;background:none;border:none;color:var(--text);opacity:0.5;cursor:pointer;">Show Shots</button>
     </div>
 
     <!-- Overall Standings -->
@@ -56,6 +55,8 @@
         <a href="https://www.grantthornton.cz/" target="_blank" rel="noopener"><img src="photos/grand_thornton_logo.png" alt="Grant Thornton"></a>
       </div>
     </div>
+
+    <a href="admin.html" style="display:block;text-align:center;font-size:0.65rem;color:var(--text);opacity:0.3;text-decoration:none;margin-top:1rem;padding-bottom:1rem;">Edit Quiz</a>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
