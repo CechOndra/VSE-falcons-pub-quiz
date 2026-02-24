@@ -64,67 +64,96 @@
     </div>
 
     <!-- Score Entry -->
-    <div id="scoreSection" class="card hidden">
-      <h2>Enter Scores</h2>
-      <div id="scoreMsg"></div>
+    <div id="scoreSection" class="card collapsible hidden">
+      <h2 class="collapsible-header">Enter Scores</h2>
+      <div class="collapsible-body">
+        <div id="scoreMsg"></div>
 
-      <div class="admin-bar">
-        <label for="roundSelect" style="margin:0;">Round:</label>
-        <select id="roundSelect"></select>
-        <button class="btn btn-primary" id="saveRoundBtn">Save Round</button>
-      </div>
+        <div class="admin-bar">
+          <label for="roundSelect" style="margin:0;">Round:</label>
+          <select id="roundSelect"></select>
+          <button class="btn btn-primary" id="saveRoundBtn">Save Round</button>
+        </div>
 
-      <!-- CSV Import -->
-      <div class="csv-section" style="margin-top:0;">
-        <h2>CSV Import</h2>
-        <p style="font-size:0.8rem;margin-bottom:0.5rem;">
-          Format: team name, standard points[, tipovacka 0/1]. One row per team.
-        </p>
-        <input type="file" id="csvFile" accept=".csv,text/csv">
-        <textarea id="csvText" rows="4" placeholder="Paste CSV here (optional)"></textarea>
-        <button class="btn btn-secondary" id="csvImportBtn">Import CSV</button>
-      </div>
+        <!-- CSV Import -->
+        <div class="csv-section" style="margin-top:0;">
+          <h2>CSV Import</h2>
+          <p style="font-size:0.8rem;margin-bottom:0.5rem;">
+            Format: team name, standard points[, tipovacka 0/1]. One row per team.
+          </p>
+          <input type="file" id="csvFile" accept=".csv,text/csv">
+          <textarea id="csvText" rows="4" placeholder="Paste CSV here (optional)"></textarea>
+          <button class="btn btn-secondary" id="csvImportBtn">Import CSV</button>
+        </div>
 
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Team</th>
-              <th class="text-center">Points (0-<span id="maxPtsLabel">10</span>)</th>
-              <th class="text-center hidden" id="tipHeader">Tipovacka</th>
-            </tr>
-          </thead>
-          <tbody id="scoreBody"></tbody>
-        </table>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Team</th>
+                <th class="text-center">Points (0-<span id="maxPtsLabel">10</span>)</th>
+                <th class="text-center hidden" id="tipHeader">Tipovacka</th>
+              </tr>
+            </thead>
+            <tbody id="scoreBody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
     <!-- Team player counts -->
-    <div id="teamsSection" class="card hidden">
-      <h2>Team Player Counts</h2>
-      <div id="teamsMsg"></div>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Team</th>
-              <th class="text-center" style="width:100px;">Players</th>
-            </tr>
-          </thead>
-          <tbody id="teamsBody"></tbody>
-        </table>
+    <div id="teamsSection" class="card collapsible collapsed hidden">
+      <h2 class="collapsible-header">Team Player Counts</h2>
+      <div class="collapsible-body">
+        <div id="teamsMsg"></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Team</th>
+                <th class="text-center" style="width:100px;">Players</th>
+              </tr>
+            </thead>
+            <tbody id="teamsBody"></tbody>
+          </table>
+        </div>
+        <button class="btn btn-primary" id="saveTeamsBtn" style="margin-top:0.5rem;">Save Player Counts</button>
       </div>
-      <button class="btn btn-primary" id="saveTeamsBtn" style="margin-top:0.5rem;">Save Player Counts</button>
+    </div>
+
+    <!-- Shots Bonus -->
+    <div id="shotsSection" class="card collapsible collapsed hidden">
+      <h2 class="collapsible-header">Shots Bonus</h2>
+      <div class="collapsible-body">
+        <p style="font-size:0.8rem;margin-bottom:0.5rem;color:var(--text);opacity:0.7;">
+          Check the box if all team members ordered and drank a shot (+1 point, one-time).
+        </p>
+        <div id="shotsMsg"></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Team</th>
+                <th class="text-center" style="width:80px;">Shots</th>
+              </tr>
+            </thead>
+            <tbody id="shotsBody"></tbody>
+          </table>
+        </div>
+        <button class="btn btn-primary" id="saveShotsBtn" style="margin-top:0.5rem;">Save Shots Bonus</button>
+      </div>
     </div>
 
     <!-- Summary -->
-    <div id="summarySection" class="card hidden">
-      <h2>Score Summary</h2>
-      <div class="table-wrap">
-        <table>
-          <thead id="summaryHead"></thead>
-          <tbody id="summaryBody"></tbody>
-        </table>
+    <div id="summarySection" class="card collapsible hidden">
+      <h2 class="collapsible-header">Score Summary</h2>
+      <div class="collapsible-body">
+        <div class="table-wrap">
+          <table>
+            <thead id="summaryHead"></thead>
+            <tbody id="summaryBody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>

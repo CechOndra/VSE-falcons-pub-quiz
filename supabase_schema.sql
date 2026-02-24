@@ -20,6 +20,7 @@ CREATE TABLE teams (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name         text NOT NULL UNIQUE,
   player_count int NOT NULL DEFAULT 1,
+  shots_bonus  int NOT NULL DEFAULT 0 CHECK (shots_bonus IN (0, 1)),
   created_at   timestamptz NOT NULL DEFAULT now()
 );
 

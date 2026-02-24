@@ -37,7 +37,7 @@
   var togglePlayersBtn = document.getElementById('togglePlayersBtn');
   togglePlayersBtn.addEventListener('click', function () {
     showPlayers = !showPlayers;
-    togglePlayersBtn.textContent = showPlayers ? 'Hide Players' : 'Show number of Players on a team';
+    togglePlayersBtn.textContent = showPlayers ? 'Hide Players' : 'Show number of Players';
     render();
   });
 
@@ -61,7 +61,7 @@
     // Map team_id -> {name, rounds: {roundNum: {std, tip}}, total}
     var map = {};
     teams.forEach(function (t) {
-      map[t.id] = { id: t.id, name: t.name, players: t.player_count || 1, rounds: {}, total: 0 };
+      map[t.id] = { id: t.id, name: t.name, players: t.player_count || 1, shots: t.shots_bonus || 0, rounds: {}, total: t.shots_bonus || 0 };
     });
 
     scores.forEach(function (s) {
@@ -210,6 +210,7 @@
       var arrow = sortState.col === r ? (sortState.dir === 'desc' ? ' \u25BC' : ' \u25B2') : '';
       headHtml += '<th class="text-center sortable" data-sort-col="' + r + '">R' + r + arrow + '</th>';
     });
+    headHtml += '<th class="text-center">Shots</th>';
     var totalArrow = sortState.col === 'total' ? (sortState.dir === 'desc' ? ' \u25BC' : ' \u25B2') : '';
     headHtml += '<th class="text-right sortable" data-sort-col="total">Total' + totalArrow + '</th></tr>';
     breakdownHead.innerHTML = headHtml;
@@ -253,6 +254,7 @@
         }
       });
 
+      bodyHtml += '<td class="text-center">' + (team.shots ? '\u2713' : '-') + '</td>';
       bodyHtml += '<td class="text-right"><strong>' + team.total + '</strong></td>';
       bodyHtml += '</tr>';
     });

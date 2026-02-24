@@ -46,6 +46,11 @@
   const teamsMsg       = document.getElementById('teamsMsg');
   const saveTeamsBtn   = document.getElementById('saveTeamsBtn');
 
+  const shotsSection   = document.getElementById('shotsSection');
+  const shotsBody      = document.getElementById('shotsBody');
+  const shotsMsg       = document.getElementById('shotsMsg');
+  const saveShotsBtn   = document.getElementById('saveShotsBtn');
+
   const summarySection = document.getElementById('summarySection');
   const summaryHead    = document.getElementById('summaryHead');
   const summaryBody    = document.getElementById('summaryBody');
@@ -118,6 +123,7 @@
       configBanner.classList.add('hidden');
       scoreSection.classList.add('hidden');
       teamsSection.classList.add('hidden');
+      shotsSection.classList.add('hidden');
       summarySection.classList.add('hidden');
       return;
     }
@@ -139,6 +145,7 @@
 
     showScoreSection();
     renderTeamsSection();
+    renderShotsSection();
     await loadAllScores();
   }
 
@@ -181,6 +188,40 @@
     showMsg(teamsMsg, 'Player counts saved.', 'success');
     saveTeamsBtn.disabled = false;
     // Refresh teams data
+    var { data: t } = await db.from('teams').select('*').order('name');
+    teams = t || [];
+  });
+
+  // ---- Shots Bonus ----
+  function renderShotsSection() {
+    if (teams.length === 0) { shotsSection.classList.add('hidden'); return; }
+    shotsSection.classList.remove('hidden');
+    var html = '';
+    teams.forEach(function (t) {
+      html += '<tr>'
+        + '<td>' + escHtml(t.name) + '</td>'
+        + '<td class="text-center"><input type="checkbox" data-team-id="' + t.id + '"'
+        + (t.shots_bonus ? ' checked' : '') + '></td>'
+        + '</tr>';
+    });
+    shotsBody.innerHTML = html;
+  }
+
+  saveShotsBtn.addEventListener('click', async function () {
+    saveShotsBtn.disabled = true;
+    var checkboxes = shotsBody.querySelectorAll('input[data-team-id]');
+    for (var i = 0; i < checkboxes.length; i++) {
+      var id = checkboxes[i].getAttribute('data-team-id');
+      var val = checkboxes[i].checked ? 1 : 0;
+      var { error } = await db.from('teams').update({ shots_bonus: val }).eq('id', id);
+      if (error) {
+        showMsg(shotsMsg, error.message, 'error');
+        saveShotsBtn.disabled = false;
+        return;
+      }
+    }
+    showMsg(shotsMsg, 'Shots bonus saved.', 'success');
+    saveShotsBtn.disabled = false;
     var { data: t } = await db.from('teams').select('*').order('name');
     teams = t || [];
   });
@@ -533,6 +574,13 @@
     // Also re-render the score table for the current round (it may have new data)
     renderScoreTable();
   }
+
+  // ---- Collapsible sections ----
+  document.querySelectorAll('.collapsible-header').forEach(function (header) {
+    header.addEventListener('click', function () {
+      header.closest('.collapsible').classList.toggle('collapsed');
+    });
+  });
 
   // ---- Init ----
   checkSession();
