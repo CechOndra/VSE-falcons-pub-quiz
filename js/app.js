@@ -8,9 +8,11 @@
 
   // Sort state: { col: 'total' | round number, dir: 'desc' | 'asc' }
   var sortState = { col: 'total', dir: 'desc' };
+  var showPlayers = false;
 
   // ---- DOM refs ----
   const roundIndicator = document.getElementById('roundIndicator');
+  const standingsHead  = document.getElementById('standingsHead');
   const standingsBody  = document.getElementById('standingsBody');
   const breakdownHead  = document.getElementById('breakdownHead');
   const breakdownBody  = document.getElementById('breakdownBody');
@@ -28,6 +30,14 @@
       viewStandings.classList.toggle('hidden', view !== 'standings');
       viewBreakdown.classList.toggle('hidden', view !== 'breakdown');
     });
+  });
+
+  // ---- Toggle players column ----
+  var togglePlayersBtn = document.getElementById('togglePlayersBtn');
+  togglePlayersBtn.addEventListener('click', function () {
+    showPlayers = !showPlayers;
+    togglePlayersBtn.textContent = showPlayers ? 'Hide Players' : 'Show number of Players on a team';
+    render();
   });
 
   // ---- Data fetching ----
@@ -164,6 +174,12 @@
 
   function renderStandings(standings) {
     var ranks = computeRanks(standings);
+
+    var headHtml = '<tr><th>#</th><th>Team</th><th class="text-right">Points</th>';
+    if (showPlayers) headHtml += '<th class="text-center">Players</th>';
+    headHtml += '</tr>';
+    standingsHead.innerHTML = headHtml;
+
     var html = '';
     standings.forEach(function (team) {
       var r = ranks[team.id];
@@ -171,9 +187,9 @@
       html += '<tr' + cls + '>'
         + '<td>' + r.label + '</td>'
         + '<td>' + escHtml(team.name) + '</td>'
-        + '<td class="text-center">' + team.players + '</td>'
-        + '<td class="text-right">' + team.total + '</td>'
-        + '</tr>';
+        + '<td class="text-right">' + team.total + '</td>';
+      if (showPlayers) html += '<td class="text-center">' + team.players + '</td>';
+      html += '</tr>';
     });
     standingsBody.innerHTML = html;
   }

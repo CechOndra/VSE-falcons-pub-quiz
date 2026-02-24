@@ -156,6 +156,10 @@ tbody td {
   border-bottom: 1px solid var(--border);
 }
 
+tbody td:first-child {
+  white-space: nowrap;
+}
+
 tbody tr:last-child td {
   border-bottom: 1px solid var(--border);
 }

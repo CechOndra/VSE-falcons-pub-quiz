@@ -19,20 +19,14 @@
     <div class="tabs">
       <button class="tab-btn active" data-view="standings">Overall Standings</button>
       <button class="tab-btn" data-view="breakdown">Round Breakdown</button>
+      <button id="togglePlayersBtn" style="margin-left:auto;font-size:0.7rem;padding:0.25rem 0.5rem;background:none;border:none;color:var(--text);opacity:0.5;cursor:pointer;">Show number of Players on a team</button>
     </div>
 
     <!-- Overall Standings -->
     <div id="view-standings">
       <div class="table-wrap">
         <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Team</th>
-              <th class="text-center">Players</th>
-              <th class="text-right">Points</th>
-            </tr>
-          </thead>
+          <thead id="standingsHead"></thead>
           <tbody id="standingsBody"></tbody>
         </table>
       </div>
