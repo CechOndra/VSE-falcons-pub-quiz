@@ -29,6 +29,7 @@
       var view = btn.getAttribute('data-view');
       viewStandings.classList.toggle('hidden', view !== 'standings');
       viewBreakdown.classList.toggle('hidden', view !== 'breakdown');
+      togglePlayersBtn.classList.toggle('hidden', view !== 'standings');
     });
   });
 
