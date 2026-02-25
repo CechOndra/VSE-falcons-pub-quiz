@@ -249,12 +249,14 @@
     // Header with sortable columns
     var headHtml = '<tr><th>#</th><th>Team</th>';
     scored.forEach(function (r) {
-      var arrow = sortState.col === r ? (sortState.dir === 'desc' ? ' \u25BC' : ' \u25B2') : '';
-      headHtml += '<th class="text-center sortable" data-sort-col="' + r + '">R' + r + arrow + '</th>';
+      var active = sortState.col === r;
+      var arrow = active ? (sortState.dir === 'desc' ? ' \u25BC' : ' \u25B2') : '';
+      headHtml += '<th class="text-center sortable' + (active ? ' sort-active' : '') + '" data-sort-col="' + r + '">R' + r + arrow + '</th>';
     });
     if (showShots) headHtml += '<th class="text-center">Shots</th>';
-    var totalArrow = sortState.col === 'total' ? (sortState.dir === 'desc' ? ' \u25BC' : ' \u25B2') : '';
-    headHtml += '<th class="text-right sortable" data-sort-col="total">Total' + totalArrow + '</th></tr>';
+    var totalActive = sortState.col === 'total';
+    var totalArrow = totalActive ? (sortState.dir === 'desc' ? ' \u25BC' : ' \u25B2') : '';
+    headHtml += '<th class="text-right sortable' + (totalActive ? ' sort-active' : '') + '" data-sort-col="total">Total' + totalArrow + '</th></tr>';
     breakdownHead.innerHTML = headHtml;
 
     // Attach click handlers to sortable headers
@@ -284,21 +286,23 @@
       bodyHtml += '<td>' + escHtml(team.name) + '</td>';
 
       scored.forEach(function (r) {
+        var colCls = 'text-center' + (sortState.col === r ? ' sort-active' : '');
         var rd = team.rounds[r];
         if (!rd) {
-          bodyHtml += '<td class="text-center">-</td>';
+          bodyHtml += '<td class="' + colCls + '">-</td>';
         } else {
           var hasTip = tipovacka[r - 1] === true;
           if (hasTip && rd.tip === 1) {
-            bodyHtml += '<td class="text-center">' + rd.std + ' + 1</td>';
+            bodyHtml += '<td class="' + colCls + '">' + rd.std + ' + 1</td>';
           } else {
-            bodyHtml += '<td class="text-center">' + (rd.std + rd.tip) + '</td>';
+            bodyHtml += '<td class="' + colCls + '">' + (rd.std + rd.tip) + '</td>';
           }
         }
       });
 
       if (showShots) bodyHtml += '<td class="text-center">' + (team.shots ? '\u2713' : '-') + '</td>';
-      bodyHtml += '<td class="text-right"><strong>' + team.total + '</strong></td>';
+      var totalCls = 'text-right' + (sortState.col === 'total' ? ' sort-active' : '');
+      bodyHtml += '<td class="' + totalCls + '"><strong>' + team.total + '</strong></td>';
       bodyHtml += '</tr>';
     });
     breakdownBody.innerHTML = bodyHtml;

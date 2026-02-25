@@ -151,6 +151,15 @@ thead th.sortable:hover {
   color: var(--accent);
 }
 
+thead th.sort-active {
+  color: var(--accent);
+  background: rgba(0, 159, 227, 0.12);
+}
+
+tbody td.sort-active {
+  background: rgba(0, 159, 227, 0.06);
+}
+
 tbody td {
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--border);
