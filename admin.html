@@ -60,6 +60,11 @@
     <div id="configBanner" class="card hidden">
       <h2>Quiz Configured</h2>
       <p id="configSummary"></p>
+      <div style="margin-top:0.75rem;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+        <span id="publishStatus" style="font-size:0.9rem;color:var(--accent);font-weight:600;"></span>
+        <button class="btn btn-primary" id="publishBtn">Publish Next Round</button>
+        <button class="btn btn-secondary" id="unpublishBtn">Unpublish Last Round</button>
+      </div>
       <button class="btn btn-danger" id="resetBtn" style="margin-top:0.75rem;">Reset Quiz</button>
     </div>
 

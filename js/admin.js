@@ -20,6 +20,9 @@
   const configBanner  = document.getElementById('configBanner');
   const configSummary = document.getElementById('configSummary');
   const resetBtn      = document.getElementById('resetBtn');
+  const publishStatus = document.getElementById('publishStatus');
+  const publishBtn    = document.getElementById('publishBtn');
+  const unpublishBtn  = document.getElementById('unpublishBtn');
 
   const setupRounds    = document.getElementById('setupRounds');
   const setupQuestions = document.getElementById('setupQuestions');
@@ -143,6 +146,7 @@
       + teams.length + ' teams, '
       + tipCount + ' rounds with Tipovacka.';
 
+    updatePublishStatus();
     showScoreSection();
     renderTeamsSection();
     renderShotsSection();
@@ -311,6 +315,36 @@
     teams = [];
     allScores = [];
     await loadConfig();
+  });
+
+  // ---- Publish controls ----
+  function updatePublishStatus() {
+    var pub = config.published_rounds || 0;
+    publishStatus.textContent = 'Published: Round ' + pub + ' of ' + config.rounds;
+    publishBtn.disabled = pub >= config.rounds;
+    unpublishBtn.disabled = pub <= 0;
+  }
+
+  publishBtn.addEventListener('click', async function () {
+    var next = (config.published_rounds || 0) + 1;
+    if (next > config.rounds) return;
+    publishBtn.disabled = true;
+    var { error } = await db.from('quiz_config').update({ published_rounds: next }).eq('id', 1);
+    publishBtn.disabled = false;
+    if (error) { alert(error.message); return; }
+    config.published_rounds = next;
+    updatePublishStatus();
+  });
+
+  unpublishBtn.addEventListener('click', async function () {
+    var prev = (config.published_rounds || 0) - 1;
+    if (prev < 0) return;
+    unpublishBtn.disabled = true;
+    var { error } = await db.from('quiz_config').update({ published_rounds: prev }).eq('id', 1);
+    unpublishBtn.disabled = false;
+    if (error) { alert(error.message); return; }
+    config.published_rounds = prev;
+    updatePublishStatus();
   });
 
   // ================================================================

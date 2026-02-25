@@ -10,6 +10,7 @@ CREATE TABLE quiz_config (
   rounds          int NOT NULL DEFAULT 5,
   questions_per_round int NOT NULL DEFAULT 10,
   has_tipovacka   jsonb NOT NULL DEFAULT '[]'::jsonb,   -- array of booleans, one per round
+  published_rounds int NOT NULL DEFAULT 0,              -- how many rounds are visible on public scoreboard
   created_at      timestamptz NOT NULL DEFAULT now(),
 
   -- Only ever one row

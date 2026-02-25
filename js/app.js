@@ -62,7 +62,11 @@
 
     config = cfgRes.data;
     teams  = teamRes.data || [];
-    scores = scoreRes.data || [];
+    var allScores = scoreRes.data || [];
+
+    // Only show scores for published rounds
+    var pubRounds = config ? (config.published_rounds || 0) : 0;
+    scores = allScores.filter(function (s) { return s.round_number <= pubRounds; });
 
     render();
   }
@@ -72,7 +76,9 @@
     // Map team_id -> {name, rounds: {roundNum: {std, tip}}, total}
     var map = {};
     teams.forEach(function (t) {
-      map[t.id] = { id: t.id, name: t.name, players: t.player_count || 1, shots: t.shots_bonus || 0, rounds: {}, total: t.shots_bonus || 0 };
+      var pubRounds = config ? (config.published_rounds || 0) : 0;
+      var shots = pubRounds > 0 ? (t.shots_bonus || 0) : 0;
+      map[t.id] = { id: t.id, name: t.name, players: t.player_count || 1, shots: shots, rounds: {}, total: shots };
     });
 
     scores.forEach(function (s) {
@@ -86,26 +92,35 @@
     });
 
     var list = Object.values(map);
-    // Sort by selected column
-    var col = sortState.col;
-    var dir = sortState.dir === 'desc' ? 1 : -1;
-    list.sort(function (a, b) {
-      var aVal, bVal;
-      if (col === 'total') {
-        aVal = a.total;
-        bVal = b.total;
-      } else {
-        var aRd = a.rounds[col];
-        var bRd = b.rounds[col];
-        aVal = aRd ? aRd.std + aRd.tip : 0;
-        bVal = bRd ? bRd.std + bRd.tip : 0;
-      }
-      if (aVal !== bVal) return (bVal - aVal) * dir;
-      // Tiebreak by total if sorting by round
-      if (col !== 'total' && a.total !== b.total) return b.total - a.total;
-      // Tiebreak by fewer players (fewer = higher rank)
-      return a.players - b.players;
-    });
+    var pubRounds = config ? (config.published_rounds || 0) : 0;
+
+    if (pubRounds === 0) {
+      // Before any round is published, sort alphabetically
+      list.sort(function (a, b) {
+        return a.name.localeCompare(b.name);
+      });
+    } else {
+      // Sort by selected column
+      var col = sortState.col;
+      var dir = sortState.dir === 'desc' ? 1 : -1;
+      list.sort(function (a, b) {
+        var aVal, bVal;
+        if (col === 'total') {
+          aVal = a.total;
+          bVal = b.total;
+        } else {
+          var aRd = a.rounds[col];
+          var bRd = b.rounds[col];
+          aVal = aRd ? aRd.std + aRd.tip : 0;
+          bVal = bRd ? bRd.std + bRd.tip : 0;
+        }
+        if (aVal !== bVal) return (bVal - aVal) * dir;
+        // Tiebreak by total if sorting by round
+        if (col !== 'total' && a.total !== b.total) return b.total - a.total;
+        // Tiebreak by fewer players (fewer = higher rank)
+        return a.players - b.players;
+      });
+    }
     return list;
   }
 
@@ -121,6 +136,20 @@
   // Compute display ranks based on total (descending), independent of current sort
   // Returns a map: team.id -> { num: rankNumber, label: displayString }
   function computeRanks(standings) {
+    var pubRounds = config ? (config.published_rounds || 0) : 0;
+
+    if (pubRounds === 0) {
+      // Before any round is published, sequential ranks based on alphabetical order
+      var sorted = standings.slice().sort(function (a, b) {
+        return a.name.localeCompare(b.name);
+      });
+      var rankMap = {};
+      sorted.forEach(function (team, i) {
+        rankMap[team.id] = { num: i + 1, label: '' + (i + 1) };
+      });
+      return rankMap;
+    }
+
     // Sort a copy by total desc, then fewer players
     var sorted = standings.slice().sort(function (a, b) {
       if (a.total !== b.total) return b.total - a.total;
@@ -168,8 +197,9 @@
     var scored = scoredRounds();
     var roundsScored = scored.length;
 
-    roundIndicator.textContent = roundsScored > 0
-      ? 'Round ' + roundsScored + ' of ' + config.rounds
+    var pubRounds = config.published_rounds || 0;
+    roundIndicator.textContent = pubRounds > 0
+      ? 'Round ' + pubRounds + ' of ' + config.rounds
       : 'No rounds scored yet';
 
     // Standings always sorted by total descending
@@ -195,7 +225,8 @@
     var html = '';
     standings.forEach(function (team) {
       var r = ranks[team.id];
-      var cls = r.num <= 3 ? ' class="rank-' + r.num + '"' : '';
+      var pubRounds = config ? (config.published_rounds || 0) : 0;
+      var cls = (pubRounds > 0 && r.num <= 3) ? ' class="rank-' + r.num + '"' : '';
       html += '<tr' + cls + '>'
         + '<td>' + r.label + '</td>'
         + '<td>' + escHtml(team.name) + '</td>'
@@ -246,7 +277,8 @@
     var bodyHtml = '';
     standings.forEach(function (team) {
       var r = ranks[team.id];
-      var cls = r.num <= 3 ? ' class="rank-' + r.num + '"' : '';
+      var pubRounds = config ? (config.published_rounds || 0) : 0;
+      var cls = (pubRounds > 0 && r.num <= 3) ? ' class="rank-' + r.num + '"' : '';
       bodyHtml += '<tr' + cls + '>';
       bodyHtml += '<td>' + r.label + '</td>';
       bodyHtml += '<td>' + escHtml(team.name) + '</td>';
