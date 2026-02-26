@@ -279,7 +279,6 @@
     // Parse teams: "Name, PlayerCount" per line
     var lines = setupTeams.value.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
     if (lines.length === 0) { showMsg(setupMsg, 'Enter at least one team.', 'error'); return; }
-    if (lines.length > 30) { showMsg(setupMsg, 'Maximum 30 teams.', 'error'); return; }
 
     var parsedTeams = [];
     for (var i = 0; i < lines.length; i++) {
