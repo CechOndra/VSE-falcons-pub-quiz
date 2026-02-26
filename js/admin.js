@@ -211,6 +211,16 @@
     shotsBody.innerHTML = html;
   }
 
+  var checkAllShotsBtn = document.getElementById('checkAllShotsBtn');
+  checkAllShotsBtn.addEventListener('click', function () {
+    var allChecked = shotsBody.querySelectorAll('input[data-team-id]');
+    var unchecked = shotsBody.querySelectorAll('input[data-team-id]:not(:checked)');
+    // If all are checked, uncheck all; otherwise check all
+    var newState = unchecked.length > 0;
+    allChecked.forEach(function (cb) { cb.checked = newState; });
+    checkAllShotsBtn.textContent = newState ? 'Uncheck All' : 'Check All';
+  });
+
   saveShotsBtn.addEventListener('click', async function () {
     saveShotsBtn.disabled = true;
     var checkboxes = shotsBody.querySelectorAll('input[data-team-id]');
@@ -397,7 +407,7 @@
 
       if (hasTip) {
         html += '<td class="text-center">'
-          + '<input type="radio" name="tipovacka" value="' + t.id + '"' + (tip === 1 ? ' checked' : '') + '>'
+          + '<input type="checkbox" class="tip-check" data-tip-team="' + t.id + '"' + (tip === 1 ? ' checked' : '') + '>'
           + '</td>';
       } else {
         html += '<td class="text-center hidden"></td>';
@@ -405,6 +415,31 @@
       html += '</tr>';
     });
     scoreBody.innerHTML = html;
+
+    // Warn when multiple tipovacka are checked
+    if (hasTip) {
+      scoreBody.querySelectorAll('.tip-check').forEach(function (cb) {
+        cb.addEventListener('change', updateTipWarning);
+      });
+      updateTipWarning();
+    }
+  }
+
+  function updateTipWarning() {
+    var checked = scoreBody.querySelectorAll('.tip-check:checked');
+    var existing = scoreMsg.querySelector('.tip-warning');
+    if (checked.length > 1) {
+      if (!existing) {
+        var warn = document.createElement('div');
+        warn.className = 'msg msg-info tip-warning';
+        warn.textContent = checked.length + ' teams selected for Tipovacka.';
+        scoreMsg.appendChild(warn);
+      } else {
+        existing.textContent = checked.length + ' teams selected for Tipovacka.';
+      }
+    } else if (existing) {
+      existing.remove();
+    }
   }
 
   saveRoundBtn.addEventListener('click', async function () {
@@ -412,11 +447,12 @@
     var tipovacka = config.has_tipovacka || [];
     var hasTip = tipovacka[rn - 1] === true;
 
-    // Determine which team gets tipovacka
-    var tipTeamId = null;
+    // Determine which teams get tipovacka
+    var tipTeamIds = {};
     if (hasTip) {
-      var checked = document.querySelector('input[name="tipovacka"]:checked');
-      if (checked) tipTeamId = checked.value;
+      scoreBody.querySelectorAll('.tip-check:checked').forEach(function (cb) {
+        tipTeamIds[cb.getAttribute('data-tip-team')] = true;
+      });
     }
 
     var rows = [];
@@ -436,7 +472,7 @@
         team_id: teamId,
         round_number: rn,
         standard_points: pts,
-        tipovacka_point: (hasTip && teamId === tipTeamId) ? 1 : 0,
+        tipovacka_point: (hasTip && tipTeamIds[teamId]) ? 1 : 0,
         updated_at: new Date().toISOString()
       });
     });
@@ -529,8 +565,8 @@
       if (input && !isNaN(pts)) input.value = pts;
 
       if (tip === 1) {
-        var radio = tr.querySelector('input[type="radio"]');
-        if (radio) radio.checked = true;
+        var cb = tr.querySelector('.tip-check');
+        if (cb) cb.checked = true;
       }
     });
 
@@ -570,12 +606,15 @@
     // Header
     var hHtml = '<tr><th>Team</th>';
     rounds.forEach(function (r) { hHtml += '<th class="text-center">R' + r + '</th>'; });
+    hHtml += '<th class="text-center">Shots</th>';
     hHtml += '<th class="text-right">Total</th></tr>';
     summaryHead.innerHTML = hHtml;
 
     // Build map
+    var teamMap = {};
+    teams.forEach(function (t) { teamMap[t.id] = t; });
     var map = {};
-    teams.forEach(function (t) { map[t.id] = { name: t.name, rounds: {}, total: 0 }; });
+    teams.forEach(function (t) { map[t.id] = { name: t.name, shots: t.shots_bonus || 0, rounds: {}, total: t.shots_bonus || 0 }; });
     allScores.forEach(function (s) {
       if (!map[s.team_id]) return;
       var pts = s.standard_points + s.tipovacka_point;
@@ -601,6 +640,7 @@
           }
         }
       });
+      bHtml += '<td class="text-center">' + (t.shots ? '\u2713' : '-') + '</td>';
       bHtml += '<td class="text-right"><strong>' + t.total + '</strong></td></tr>';
     });
     summaryBody.innerHTML = bHtml;
