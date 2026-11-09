@@ -11,6 +11,10 @@ CREATE TABLE quiz_config (
   questions_per_round int NOT NULL DEFAULT 10,
   has_tipovacka   jsonb NOT NULL DEFAULT '[]'::jsonb,   -- array of booleans, one per round
   published_rounds int NOT NULL DEFAULT 0,              -- how many rounds are visible on public scoreboard
+  bonus_label      text NOT NULL DEFAULT 'Drinking',    -- name of the extra-points bonus
+  bonus_mode       text NOT NULL DEFAULT 'yes_no' CHECK (bonus_mode IN ('yes_no', 'count')),
+  bonus_max        int  NOT NULL DEFAULT 3 CHECK (bonus_max BETWEEN 1 AND 20),   -- count mode: max orders
+  bonus_yes_points numeric(3,1) NOT NULL DEFAULT 1,     -- yes/no mode: points for a yes
   created_at      timestamptz NOT NULL DEFAULT now(),
 
   -- Only ever one row
@@ -21,7 +25,7 @@ CREATE TABLE teams (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name         text NOT NULL UNIQUE,
   player_count int NOT NULL DEFAULT 1,
-  shots_bonus  int NOT NULL DEFAULT 0 CHECK (shots_bonus IN (0, 1)),
+  shots_bonus  int NOT NULL DEFAULT 0 CHECK (shots_bonus >= 0),   -- yes/no: 0|1, count: 0..bonus_max
   created_at   timestamptz NOT NULL DEFAULT now()
 );
 

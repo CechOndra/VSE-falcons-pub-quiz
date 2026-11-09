@@ -50,6 +50,21 @@
       </div>
       <div id="perRoundTip" class="hidden" style="margin-bottom:0.75rem;"></div>
 
+      <label for="setupBonusLabel">Extra points for drinking (bonus)</label>
+      <input type="text" id="setupBonusLabel" value="Drinking" maxlength="30" style="margin-bottom:0.5rem;">
+      <select id="setupBonusMode" style="width:auto;margin-bottom:0.5rem;">
+        <option value="yes_no">Yes / No (one-time)</option>
+        <option value="count">Count (1 point per round of drinks, up to a maximum)</option>
+      </select>
+      <div id="setupBonusYesRow" style="margin-bottom:0.75rem;">
+        <label for="setupBonusYes">Points for "yes"</label>
+        <input type="number" id="setupBonusYes" value="1" min="0" max="10" step="0.5" style="width:auto;">
+      </div>
+      <div id="setupBonusMaxRow" class="hidden" style="margin-bottom:0.75rem;">
+        <label for="setupBonusMax">Maximum orders (= maximum points)</label>
+        <input type="number" id="setupBonusMax" value="3" min="1" max="20" step="1" style="width:auto;">
+      </div>
+
       <label for="setupTeams">Teams — one per line: Name, PlayerCount</label>
       <textarea id="setupTeams" rows="8" placeholder="Team Alpha, 5&#10;Team Beta, 4&#10;Team Gamma, 6"></textarea>
 
@@ -126,27 +141,53 @@
       </div>
     </div>
 
-    <!-- Shots Bonus -->
+    <!-- Drinking Bonus -->
     <div id="shotsSection" class="card collapsible collapsed hidden">
-      <h2 class="collapsible-header">Shots Bonus</h2>
+      <h2 class="collapsible-header" id="bonusTitle">Drinking Bonus</h2>
       <div class="collapsible-body">
-        <p style="font-size:0.8rem;margin-bottom:0.5rem;color:var(--text);opacity:0.7;">
-          Check the box if all team members ordered and drank a shot (+1 point, one-time).
-        </p>
+        <p id="bonusDesc" style="font-size:0.8rem;margin-bottom:0.5rem;color:var(--text);opacity:0.7;"></p>
+
+        <!-- Current settings (read-only until Edit is clicked) -->
+        <div id="bonusSettingsView" style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;flex-wrap:wrap;">
+          <span id="bonusSummary" style="font-size:0.85rem;"></span>
+          <button class="btn btn-secondary" id="bonusEditBtn">Edit settings</button>
+        </div>
+
+        <div id="bonusSettingsForm" class="hidden" style="margin-bottom:0.75rem;">
+          <label for="bonusLabelInput">Name</label>
+          <input type="text" id="bonusLabelInput" maxlength="30" style="margin-bottom:0.5rem;">
+          <select id="bonusModeInput" style="width:auto;margin-bottom:0.5rem;">
+            <option value="yes_no">Yes / No (one-time)</option>
+            <option value="count">Count (1 point per round of drinks, up to a maximum)</option>
+          </select>
+          <div id="bonusYesRow" style="margin-bottom:0.75rem;">
+            <label for="bonusYesInput">Points for "yes"</label>
+            <input type="number" id="bonusYesInput" min="0" max="10" step="0.5" style="width:auto;">
+          </div>
+          <div id="bonusMaxRow" class="hidden" style="margin-bottom:0.75rem;">
+            <label for="bonusMaxInput">Maximum orders (= maximum points)</label>
+            <input type="number" id="bonusMaxInput" min="1" max="20" step="1" style="width:auto;">
+          </div>
+          <div style="display:flex;gap:0.5rem;">
+            <button class="btn btn-primary" id="bonusSaveSettingsBtn">Save settings</button>
+            <button class="btn btn-secondary" id="bonusCancelBtn">Cancel</button>
+          </div>
+        </div>
+
         <div id="shotsMsg"></div>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>Team</th>
-                <th class="text-center" style="width:80px;">Shots</th>
+                <th class="text-center" style="width:110px;" id="bonusColHead">Drinking</th>
               </tr>
             </thead>
             <tbody id="shotsBody"></tbody>
           </table>
         </div>
         <div style="margin-top:0.5rem;display:flex;gap:0.5rem;">
-          <button class="btn btn-primary" id="saveShotsBtn">Save Shots Bonus</button>
+          <button class="btn btn-primary" id="saveShotsBtn">Save</button>
           <button class="btn btn-secondary" id="checkAllShotsBtn">Check All</button>
         </div>
       </div>
@@ -207,6 +248,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
   <script src="config.js"></script>
   <script src="js/supabase.js"></script>
+  <script src="js/bonus.js"></script>
   <script src="js/admin.js"></script>
 </body>
 </html>

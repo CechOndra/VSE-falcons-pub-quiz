@@ -10,6 +10,7 @@
   var sortState = { col: 'total', dir: 'desc' };
   var showPlayers = false;
   var showShots = false;
+  var bonus = bonusSettings(null);   // drinking bonus settings, refreshed with the config
 
   // ---- DOM refs ----
   const roundIndicator = document.getElementById('roundIndicator');
@@ -48,7 +49,7 @@
   toggleShotsBtn.classList.add('hidden');
   toggleShotsBtn.addEventListener('click', function () {
     showShots = !showShots;
-    toggleShotsBtn.textContent = showShots ? 'Hide Shots' : 'Show Shots';
+    toggleShotsBtn.textContent = (showShots ? 'Hide ' : 'Show ') + bonus.label;
     render();
   });
 
@@ -61,6 +62,8 @@
     ]);
 
     config = cfgRes.data;
+    bonus = bonusSettings(config);
+    toggleShotsBtn.textContent = (showShots ? 'Hide ' : 'Show ') + bonus.label;
     teams  = teamRes.data || [];
     var allScores = scoreRes.data || [];
 
@@ -77,8 +80,9 @@
     var map = {};
     teams.forEach(function (t) {
       var pubRounds = config ? (config.published_rounds || 0) : 0;
-      var shots = pubRounds > 0 ? (t.shots_bonus || 0) : 0;
-      map[t.id] = { id: t.id, name: t.name, players: t.player_count || 1, shots: shots, rounds: {}, total: shots };
+      var shots = pubRounds > 0 ? bonusPoints(t, bonus) : 0;
+      var shotsText = pubRounds > 0 ? bonusDisplay(t, bonus) : '-';
+      map[t.id] = { id: t.id, name: t.name, players: t.player_count || 1, shots: shots, shotsText: shotsText, rounds: {}, total: shots };
     });
 
     scores.forEach(function (s) {
@@ -253,7 +257,7 @@
       var arrow = active ? (sortState.dir === 'desc' ? ' \u25BC' : ' \u25B2') : '';
       headHtml += '<th class="text-center sortable' + (active ? ' sort-active' : '') + '" data-sort-col="' + r + '">R' + r + arrow + '</th>';
     });
-    if (showShots) headHtml += '<th class="text-center">Shots</th>';
+    if (showShots) headHtml += '<th class="text-center">' + escHtml(bonus.label) + '</th>';
     var totalActive = sortState.col === 'total';
     var totalArrow = totalActive ? (sortState.dir === 'desc' ? ' \u25BC' : ' \u25B2') : '';
     headHtml += '<th class="text-right sortable' + (totalActive ? ' sort-active' : '') + '" data-sort-col="total">Total' + totalArrow + '</th></tr>';
@@ -300,7 +304,7 @@
         }
       });
 
-      if (showShots) bodyHtml += '<td class="text-center">' + (team.shots ? '\u2713' : '-') + '</td>';
+      if (showShots) bodyHtml += '<td class="text-center">' + team.shotsText + '</td>';
       var totalCls = 'text-right' + (sortState.col === 'total' ? ' sort-active' : '');
       bodyHtml += '<td class="' + totalCls + '"><strong>' + team.total + '</strong></td>';
       bodyHtml += '</tr>';

@@ -53,6 +53,27 @@
   const shotsBody      = document.getElementById('shotsBody');
   const shotsMsg       = document.getElementById('shotsMsg');
   const saveShotsBtn   = document.getElementById('saveShotsBtn');
+  const bonusTitle     = document.getElementById('bonusTitle');
+  const bonusDesc      = document.getElementById('bonusDesc');
+  const bonusColHead   = document.getElementById('bonusColHead');
+  const bonusSummary   = document.getElementById('bonusSummary');
+  const bonusEditBtn   = document.getElementById('bonusEditBtn');
+  const bonusSettingsView = document.getElementById('bonusSettingsView');
+  const bonusSettingsForm = document.getElementById('bonusSettingsForm');
+  const bonusLabelInput   = document.getElementById('bonusLabelInput');
+  const bonusModeInput    = document.getElementById('bonusModeInput');
+  const bonusYesInput     = document.getElementById('bonusYesInput');
+  const bonusMaxInput     = document.getElementById('bonusMaxInput');
+  const bonusYesRow       = document.getElementById('bonusYesRow');
+  const bonusMaxRow       = document.getElementById('bonusMaxRow');
+  const bonusSaveSettingsBtn = document.getElementById('bonusSaveSettingsBtn');
+  const bonusCancelBtn    = document.getElementById('bonusCancelBtn');
+  const setupBonusLabel   = document.getElementById('setupBonusLabel');
+  const setupBonusMode    = document.getElementById('setupBonusMode');
+  const setupBonusYes     = document.getElementById('setupBonusYes');
+  const setupBonusMax     = document.getElementById('setupBonusMax');
+  const setupBonusYesRow  = document.getElementById('setupBonusYesRow');
+  const setupBonusMaxRow  = document.getElementById('setupBonusMaxRow');
 
   const summarySection = document.getElementById('summarySection');
   const summaryHead    = document.getElementById('summaryHead');
@@ -206,25 +227,50 @@
     teams = t || [];
   });
 
-  // ---- Shots Bonus ----
+  // ---- Drinking bonus ----
+  function fmtPts(n) { return (+n).toString(); }
+
+  function bonusSummaryText(bs) {
+    if (bs.mode === 'count') {
+      return bs.label + ': count mode, 1 point per round of drinks, up to ' + bs.max + ' (max ' + bs.max + ' points).';
+    }
+    return bs.label + ': yes / no, ' + fmtPts(bs.yesPoints) + ' point' + (bs.yesPoints === 1 ? '' : 's') + ' for "yes".';
+  }
+
   function renderShotsSection() {
     if (teams.length === 0) { shotsSection.classList.add('hidden'); return; }
     shotsSection.classList.remove('hidden');
+    var bs = bonusSettings(config);
+
+    bonusTitle.textContent = bs.label + ' Bonus';
+    bonusColHead.textContent = bs.label;
+    bonusSummary.textContent = bonusSummaryText(bs);
+    bonusDesc.textContent = bs.mode === 'count'
+      ? 'Enter how many times the whole team ordered a round of drinks for every member (1 point each, max ' + bs.max + ').'
+      : 'Check the box if the team earned the bonus (+' + fmtPts(bs.yesPoints) + ' point' + (bs.yesPoints === 1 ? '' : 's') + ', one-time).';
+
     var html = '';
     teams.forEach(function (t) {
-      html += '<tr>'
-        + '<td>' + escHtml(t.name) + '</td>'
-        + '<td class="text-center"><input type="checkbox" data-team-id="' + t.id + '"'
-        + (t.shots_bonus ? ' checked' : '') + '></td>'
-        + '</tr>';
+      var v = t.shots_bonus || 0;
+      html += '<tr><td>' + escHtml(t.name) + '</td><td class="text-center">';
+      if (bs.mode === 'count') {
+        html += '<input type="number" class="score-input" data-team-id="' + t.id + '" min="0" max="' + bs.max
+          + '" step="1" value="' + v + '">';
+      } else {
+        html += '<input type="checkbox" data-team-id="' + t.id + '"' + (v ? ' checked' : '') + '>';
+      }
+      html += '</td></tr>';
     });
     shotsBody.innerHTML = html;
+
+    checkAllShotsBtn.classList.toggle('hidden', bs.mode === 'count');
+    checkAllShotsBtn.textContent = 'Check All';
   }
 
   var checkAllShotsBtn = document.getElementById('checkAllShotsBtn');
   checkAllShotsBtn.addEventListener('click', function () {
-    var allChecked = shotsBody.querySelectorAll('input[data-team-id]');
-    var unchecked = shotsBody.querySelectorAll('input[data-team-id]:not(:checked)');
+    var allChecked = shotsBody.querySelectorAll('input[type="checkbox"][data-team-id]');
+    var unchecked = shotsBody.querySelectorAll('input[type="checkbox"][data-team-id]:not(:checked)');
     // If all are checked, uncheck all; otherwise check all
     var newState = unchecked.length > 0;
     allChecked.forEach(function (cb) { cb.checked = newState; });
@@ -232,22 +278,121 @@
   });
 
   saveShotsBtn.addEventListener('click', async function () {
+    var bs = bonusSettings(config);
+    var inputs = shotsBody.querySelectorAll('input[data-team-id]');
+    var updates = [];
+    for (var i = 0; i < inputs.length; i++) {
+      var id = inputs[i].getAttribute('data-team-id');
+      var val;
+      if (bs.mode === 'count') {
+        var raw = inputs[i].value.trim();
+        val = raw === '' ? 0 : Number(raw);
+        if (!Number.isInteger(val) || val < 0 || val > bs.max) {
+          showMsg(shotsMsg, 'Enter a whole number from 0 to ' + bs.max + ' for every team.', 'error');
+          return;
+        }
+      } else {
+        val = inputs[i].checked ? 1 : 0;
+      }
+      updates.push({ id: id, val: val });
+    }
+
     saveShotsBtn.disabled = true;
-    var checkboxes = shotsBody.querySelectorAll('input[data-team-id]');
-    for (var i = 0; i < checkboxes.length; i++) {
-      var id = checkboxes[i].getAttribute('data-team-id');
-      var val = checkboxes[i].checked ? 1 : 0;
-      var { error } = await db.from('teams').update({ shots_bonus: val }).eq('id', id);
+    for (var j = 0; j < updates.length; j++) {
+      var { error } = await db.from('teams').update({ shots_bonus: updates[j].val }).eq('id', updates[j].id);
       if (error) {
         showMsg(shotsMsg, error.message, 'error');
         saveShotsBtn.disabled = false;
         return;
       }
     }
-    showMsg(shotsMsg, 'Shots bonus saved.', 'success');
+    showMsg(shotsMsg, bs.label + ' bonus saved.', 'success');
     saveShotsBtn.disabled = false;
     var { data: t } = await db.from('teams').select('*').order('name');
     teams = t || [];
+    renderSummary();
+  });
+
+  // Show/hide the "points for yes" and "maximum" fields for the chosen mode
+  function toggleBonusFields(modeEl, yesRow, maxRow) {
+    var count = modeEl.value === 'count';
+    yesRow.classList.toggle('hidden', count);
+    maxRow.classList.toggle('hidden', !count);
+  }
+  setupBonusMode.addEventListener('change', function () { toggleBonusFields(setupBonusMode, setupBonusYesRow, setupBonusMaxRow); });
+  bonusModeInput.addEventListener('change', function () { toggleBonusFields(bonusModeInput, bonusYesRow, bonusMaxRow); });
+
+  // Read + validate bonus settings from a set of inputs; returns object or null (message shown)
+  function readBonusInputs(labelEl, modeEl, yesEl, maxEl, msgEl) {
+    var label = labelEl.value.trim();
+    if (!label) { showMsg(msgEl, 'Enter a name for the bonus.', 'error'); return null; }
+    var yes = parseFloat(yesEl.value);
+    if (isNaN(yes) || yes < 0 || yes > 10 || (yes * 2) % 1 !== 0) {
+      showMsg(msgEl, 'Points for "yes" must be 0-10 in steps of 0.5.', 'error'); return null;
+    }
+    var max = parseInt(maxEl.value, 10);
+    if (isNaN(max) || max < 1 || max > 20) { showMsg(msgEl, 'Maximum orders must be a whole number from 1 to 20.', 'error'); return null; }
+    return { bonus_label: label, bonus_mode: modeEl.value === 'count' ? 'count' : 'yes_no', bonus_yes_points: yes, bonus_max: max };
+  }
+
+  // Has the quiz already started? (anything scored, published or bonus given)
+  function quizHasStarted() {
+    return allScores.length > 0
+      || (config.published_rounds || 0) > 0
+      || teams.some(function (t) { return (t.shots_bonus || 0) > 0; });
+  }
+
+  bonusEditBtn.addEventListener('click', function () {
+    if (quizHasStarted()) {
+      var ok = confirm('The quiz has already started.\n\n'
+        + 'Changing the bonus settings now can change points and standings that are already scored or shown to players. '
+        + 'You should normally never need this.\n\nEdit the settings anyway?');
+      if (!ok) return;
+    }
+    var bs = bonusSettings(config);
+    bonusLabelInput.value = bs.label;
+    bonusModeInput.value = bs.mode;
+    bonusYesInput.value = bs.yesPoints;
+    bonusMaxInput.value = bs.max;
+    toggleBonusFields(bonusModeInput, bonusYesRow, bonusMaxRow);
+    bonusSettingsView.classList.add('hidden');
+    bonusSettingsForm.classList.remove('hidden');
+  });
+
+  bonusCancelBtn.addEventListener('click', function () {
+    bonusSettingsForm.classList.add('hidden');
+    bonusSettingsView.classList.remove('hidden');
+  });
+
+  bonusSaveSettingsBtn.addEventListener('click', async function () {
+    var next = readBonusInputs(bonusLabelInput, bonusModeInput, bonusYesInput, bonusMaxInput, shotsMsg);
+    if (!next) return;
+
+    // Teams whose stored value would exceed the new limit get reduced to it
+    var newMax = next.bonus_mode === 'count' ? next.bonus_max : 1;
+    var affected = teams.filter(function (t) { return (t.shots_bonus || 0) > newMax; });
+    if (affected.length > 0) {
+      var okClamp = confirm(affected.length + ' team(s) currently have more than the new maximum ('
+        + newMax + ') and will be reduced to ' + newMax + '.\n\nContinue?');
+      if (!okClamp) return;
+    }
+
+    bonusSaveSettingsBtn.disabled = true;
+    var { error } = await db.from('quiz_config').update(next).eq('id', 1);
+    if (error) {
+      bonusSaveSettingsBtn.disabled = false;
+      showMsg(shotsMsg, error.message + ' (Has the database migration been run?)', 'error');
+      return;
+    }
+    for (var i = 0; i < affected.length; i++) {
+      var { error: tErr } = await db.from('teams').update({ shots_bonus: newMax }).eq('id', affected[i].id);
+      if (tErr) { showMsg(shotsMsg, tErr.message, 'error'); break; }
+    }
+    bonusSaveSettingsBtn.disabled = false;
+    bonusSettingsForm.classList.add('hidden');
+    bonusSettingsView.classList.remove('hidden');
+    await loadConfig();
+    showMsg(shotsMsg, 'Settings saved.', 'success');
   });
 
   // Per-round Tipovacka toggles when "all rounds" is unchecked
@@ -304,12 +449,15 @@
     var unique = new Set(parsedTeams.map(function (t) { return t.name; }));
     if (unique.size !== parsedTeams.length) { showMsg(setupMsg, 'Duplicate team names found.', 'error'); return; }
 
+    var bonus = readBonusInputs(setupBonusLabel, setupBonusMode, setupBonusYes, setupBonusMax, setupMsg);
+    if (!bonus) return;
+
     setupSaveBtn.disabled = true;
 
     // Save config
-    var { error: cfgErr } = await db.from('quiz_config').upsert({
+    var { error: cfgErr } = await db.from('quiz_config').upsert(Object.assign({
       id: 1, rounds: rounds, questions_per_round: qpr, has_tipovacka: tipArr
-    });
+    }, bonus));
     if (cfgErr) { showMsg(setupMsg, cfgErr.message, 'error'); setupSaveBtn.disabled = false; return; }
 
     // Save teams
@@ -616,7 +764,8 @@
     // Header
     var hHtml = '<tr><th>Team</th>';
     rounds.forEach(function (r) { hHtml += '<th class="text-center">R' + r + '</th>'; });
-    hHtml += '<th class="text-center">Shots</th>';
+    var bs = bonusSettings(config);
+    hHtml += '<th class="text-center">' + escHtml(bs.label) + '</th>';
     hHtml += '<th class="text-right">Total</th></tr>';
     summaryHead.innerHTML = hHtml;
 
@@ -624,7 +773,7 @@
     var teamMap = {};
     teams.forEach(function (t) { teamMap[t.id] = t; });
     var map = {};
-    teams.forEach(function (t) { map[t.id] = { name: t.name, shots: t.shots_bonus || 0, rounds: {}, total: t.shots_bonus || 0 }; });
+    teams.forEach(function (t) { map[t.id] = { name: t.name, shots: bonusDisplay(t, bs), rounds: {}, total: bonusPoints(t, bs) }; });
     allScores.forEach(function (s) {
       if (!map[s.team_id]) return;
       var pts = s.standard_points + s.tipovacka_point;
@@ -650,7 +799,7 @@
           }
         }
       });
-      bHtml += '<td class="text-center">' + (t.shots ? '\u2713' : '-') + '</td>';
+      bHtml += '<td class="text-center">' + t.shots + '</td>';
       bHtml += '<td class="text-right"><strong>' + t.total + '</strong></td></tr>';
     });
     summaryBody.innerHTML = bHtml;
@@ -665,8 +814,10 @@
 
   function computeExportStandings() {
     var map = {};
+    var bs = bonusSettings(config);
     teams.forEach(function (t) {
-      map[t.id] = { id: t.id, name: t.name, players: t.player_count || 1, shots: t.shots_bonus || 0, rounds: {}, total: t.shots_bonus || 0 };
+      var bp = bonusPoints(t, bs);
+      map[t.id] = { id: t.id, name: t.name, players: t.player_count || 1, shots: bp, rounds: {}, total: bp };
     });
     allScores.forEach(function (s) {
       if (!map[s.team_id]) return;
@@ -734,7 +885,7 @@
 
     var header = ['Rank', 'Team'];
     rounds.forEach(function (r) { header.push('R' + r); });
-    header.push('Shots');
+    header.push(bonusSettings(config).label);
     header.push('Total');
 
     var rows = [header];
@@ -754,7 +905,7 @@
           }
         }
       });
-      row.push(t.shots ? 1 : 0);
+      row.push(t.shots);
       row.push(t.total);
       return rows.push(row);
     });
@@ -784,7 +935,8 @@
       scoreMap[s.team_id + ':' + s.round_number] = s;
     });
 
-    var header = ['Team', 'Players', 'Shots'];
+    var bs = bonusSettings(config);
+    var header = ['Team', 'Players', bs.label];
     var pointCols = [];
     for (var r = 1; r <= config.rounds; r++) {
       pointCols.push(header.length);
@@ -810,7 +962,7 @@
     var totals = [];
     teams.forEach(function (t) {
       var players = t.player_count || 1;
-      var shots = t.shots_bonus ? 1 : 0;
+      var shots = bonusPoints(t, bs); // points earned, so Total = bonus + round points
       var row = [t.name, players, shots];
       var total = shots;
       for (var rn = 1; rn <= config.rounds; rn++) {
@@ -857,7 +1009,7 @@
     var greenCols = [];
     header.forEach(function (h, i) {
       if (/^R\d+$/.test(h)) fillCols.push(i);
-      if (h === 'Shots' || /^R\d+ Tip$/.test(h)) greenCols.push(i);
+      if (i === 2 || /^R\d+ Tip$/.test(h)) greenCols.push(i);
     });
     var meta = {
       n: n,
@@ -910,9 +1062,13 @@
       ['Questions per round', config.questions_per_round],
       ['Tipovacka rounds', tipRounds.join(', ') || 'none'],
       ['Published rounds', config.published_rounds || 0],
+      ['Bonus name', bonusSettings(config).label],
+      ['Bonus mode', bonusSettings(config).mode === 'count'
+        ? 'count: 1 point per order, max ' + bonusSettings(config).max
+        : 'yes/no: ' + bonusSettings(config).yesPoints + ' point(s)'],
       ['Teams', teams.length],
       [],
-      ['Note', 'Fill points into the R columns of the Quiz State sheet. Total and Rank are formulas (Excel only). Ties are broken by fewer players.']
+      ['Note', 'Fill points into the R columns of the Quiz State sheet. The bonus column holds the points earned from the bonus. Total and Rank are formulas (Excel only). Ties are broken by fewer players.']
     ];
   }
 
@@ -1008,15 +1164,15 @@
       (sheet.fillCols || []).forEach(function (ci) {
         ws.getColumn(ci + 1).eachCell(function (cell) { cell.fill = blue; });
       });
-      // Conditional format: a cell equal to 1 gets a light green background
+      // Conditional format: a cell above 0 (bonus earned / tipovacka point) gets a light green background
       (sheet.greenCols || []).forEach(function (ci) {
         var L = colLetter(ci);
         ws.addConditionalFormatting({
           ref: L + '2:' + L + sheet.data.length,
           rules: [{
             type: 'cellIs',
-            operator: 'equal',
-            formulae: [1],
+            operator: 'greaterThan',
+            formulae: [0],
             style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFE2F0D9' } } }
           }]
         });
