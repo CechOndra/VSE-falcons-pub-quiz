@@ -293,7 +293,7 @@
         } else {
           var hasTip = tipovacka[r - 1] === true;
           if (hasTip && rd.tip === 1) {
-            bodyHtml += '<td class="' + colCls + '">' + rd.std + ' + 1</td>';
+            bodyHtml += '<td class="' + colCls + '">' + rd.std + '<span class="tip-plus">+1</span></td>';
           } else {
             bodyHtml += '<td class="' + colCls + '">' + (rd.std + rd.tip) + '</td>';
           }
