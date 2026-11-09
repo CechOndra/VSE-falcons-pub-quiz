@@ -63,6 +63,7 @@
   const exportStandings = document.getElementById('exportStandings');
   const exportBreakdown = document.getElementById('exportBreakdown');
   const exportState     = document.getElementById('exportState');
+  const exportName      = document.getElementById('exportName');
   const exportBtn       = document.getElementById('exportBtn');
   const exportMsg       = document.getElementById('exportMsg');
 
@@ -795,8 +796,10 @@
     }
     var totalCol = header.length;
     var rankCol = totalCol + 1;
+    var keyCol = totalCol + 2;
     header.push('Total');
     header.push('Rank');
+    header.push('Sort key (helper)');
 
     var n = teams.length;
     var first = 2, last = n + 1; // Excel rows (1 = header)
@@ -820,7 +823,8 @@
         }
       }
       totals.push(total);
-      row.push(total); // placeholder, replaced below
+      row.push(total); // placeholders, replaced below
+      row.push('');
       row.push('');
       rows.push(row);
     });
@@ -840,9 +844,58 @@
       var tc = colLetter(totalCol);
       var rankF = '1+COUNTIF(' + totalRange + ',">"&' + tc + xr + ')'
         + '+COUNTIFS(' + totalRange + ',' + tc + xr + ',' + playersRange + ',"<"&B' + xr + ')';
+      // Unique sort key: points desc, then fewer players, then sheet order
+      var keyF = tc + xr + '*100000-B' + xr + '*100-ROW()/1000';
+      var keyV = totals[i] * 100000 - players * 100 - xr / 1000;
       row[totalCol] = { t: 'n', v: totals[i], f: totalF };
       row[rankCol]  = { t: 'n', v: rank, f: rankF };
+      row[keyCol]   = { t: 'n', v: keyV, f: keyF };
     });
+
+    // Layout info for styling and for the Standings formulas
+    var fillCols = [];
+    var greenCols = [];
+    header.forEach(function (h, i) {
+      if (/^R\d+$/.test(h)) fillCols.push(i);
+      if (h === 'Shots' || /^R\d+ Tip$/.test(h)) greenCols.push(i);
+    });
+    var meta = {
+      n: n,
+      fillCols: fillCols,
+      greyCols: [keyCol],
+      greenCols: greenCols,
+      rankCol: rankCol,
+      totalCol: totalCol,
+      teamRange: 'A' + first + ':A' + last,
+      playersRange: playersRange,
+      totalRange: totalRange,
+      rankRange: colLetter(rankCol) + first + ':' + colLetter(rankCol) + last,
+      keyRange: colLetter(keyCol) + first + ':' + colLetter(keyCol) + last
+    };
+    return { rows: rows, meta: meta };
+  }
+
+  // Standings whose cells are formulas over the Quiz State sheet: the k-th row
+  // picks the team with the k-th largest sort key, so the order, ranks and
+  // points all update when scores are edited in Quiz State.
+  function buildLiveStandings(meta, staticRows) {
+    var q = "'Quiz State'!";
+    function abs(range) {
+      return q + range.replace(/([A-Z]+)(\d+)/g, '$$$1$$$2');
+    }
+    var key = abs(meta.keyRange);
+    var rows = [staticRows[0]];
+    for (var k = 1; k <= meta.n; k++) {
+      var m = 'MATCH(LARGE(' + key + ',' + k + '),' + key + ',0)';
+      var rankRef = 'INDEX(' + abs(meta.rankRange) + ',' + m + ')';
+      var st = staticRows[k];
+      rows.push([
+        { v: st[0], f: 'IF(COUNTIF(' + abs(meta.rankRange) + ',' + rankRef + ')>1,"T-"&' + rankRef + ',' + rankRef + ')' },
+        { v: st[1], f: 'INDEX(' + abs(meta.teamRange) + ',' + m + ')' },
+        { v: st[2], f: 'INDEX(' + abs(meta.playersRange) + ',' + m + ')' },
+        { v: st[3], f: 'INDEX(' + abs(meta.totalRange) + ',' + m + ')' }
+      ]);
+    }
     return rows;
   }
 
@@ -869,6 +922,24 @@
         return (c && typeof c === 'object') ? c.v : c;
       });
     });
+  }
+
+  // e.g. VSE-Falcons-Pub-Quiz_state_round-3-of-5_2026-11-09
+  //      pub-quiz_results_FINAL_2026-11-09
+  function buildExportFilename(today) {
+    var name = exportName.value.trim().replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, '-');
+    var perRound = {};
+    allScores.forEach(function (s) { perRound[s.round_number] = (perRound[s.round_number] || 0) + 1; });
+    var done = 0;
+    Object.keys(perRound).forEach(function (rn) {
+      if (perRound[rn] >= teams.length && +rn > done) done = +rn;
+    });
+    var parts = [name || 'pub-quiz', exportState.checked ? 'state' : 'results'];
+    if (done >= config.rounds) parts.push('FINAL');
+    else if (done > 0) parts.push('round-' + done + '-of-' + config.rounds);
+    else parts.push('not-started');
+    parts.push(today);
+    return parts.join('_');
   }
 
   function triggerDownload(blob, filename) {
@@ -902,13 +973,91 @@
     triggerDownload(blob, filename);
   }
 
-  function exportExcel(sheets, filename) {
-    var wb = XLSX.utils.book_new();
+  async function exportExcel(sheets, filename) {
+    var wb = new ExcelJS.Workbook();
+    var blue = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFDDEBF7' } };
     sheets.forEach(function (sheet) {
-      var ws = XLSX.utils.aoa_to_sheet(sheet.data);
-      XLSX.utils.book_append_sheet(wb, ws, sheet.name);
+      var ws = wb.addWorksheet(sheet.name);
+      var widths = [];
+      sheet.data.forEach(function (row) {
+        var cells = row.map(function (c) {
+          if (c && typeof c === 'object') return { formula: c.f, result: c.v };
+          return c;
+        });
+        ws.addRow(cells);
+        row.forEach(function (c, i) {
+          var v = (c && typeof c === 'object') ? c.v : c;
+          var len = ('' + (v === undefined || v === null ? '' : v)).length;
+          widths[i] = Math.max(widths[i] || 8, Math.min(len + 2, 60));
+        });
+      });
+      widths.forEach(function (w, i) { ws.getColumn(i + 1).width = w; });
+      ws.getRow(1).font = { bold: true };
+      // Line under the header row
+      ws.getRow(1).eachCell(function (cell) {
+        cell.border = { bottom: { style: 'medium' } };
+      });
+      // Total column: thick line on the left, slightly thinner on the right,
+      // to separate it from the cells that get typed into
+      if (sheet.totalCol !== undefined) {
+        for (var r = 1; r <= sheet.data.length; r++) {
+          var tcell = ws.getCell(r, sheet.totalCol + 1);
+          tcell.border = Object.assign({}, tcell.border, { left: { style: 'thick' }, right: { style: 'medium' } });
+        }
+      }
+      (sheet.fillCols || []).forEach(function (ci) {
+        ws.getColumn(ci + 1).eachCell(function (cell) { cell.fill = blue; });
+      });
+      // Conditional format: a cell equal to 1 gets a light green background
+      (sheet.greenCols || []).forEach(function (ci) {
+        var L = colLetter(ci);
+        ws.addConditionalFormatting({
+          ref: L + '2:' + L + sheet.data.length,
+          rules: [{
+            type: 'cellIs',
+            operator: 'equal',
+            formulae: [1],
+            style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: 'FFE2F0D9' } } }
+          }]
+        });
+      });
+      // Rank column: podium colours, subtle 4th/5th, bold red number for last place.
+      // Rule priority (all set the same fill, so the first match wins): podium, last place, then 4-5.
+      if (sheet.rankCol !== undefined) {
+        var RL = colLetter(sheet.rankCol);
+        var rf = RL + '2', rr = '$' + RL + '$2:$' + RL + '$' + sheet.data.length;
+        function rankRule(formula, argb, type, operator) {
+          var r = {
+            type: type || 'cellIs',
+            formulae: [formula],
+            style: { fill: { type: 'pattern', pattern: 'solid', bgColor: { argb: argb } } }
+          };
+          if (operator) r.operator = operator;
+          return r;
+        }
+        ws.addConditionalFormatting({
+          ref: RL + '2:' + RL + sheet.data.length,
+          rules: [
+            rankRule(1, 'FFFFE699', 'cellIs', 'equal'),                 // gold
+            rankRule(2, 'FFD9D9D9', 'cellIs', 'equal'),                 // silver
+            rankRule(3, 'FFF4C7A1', 'cellIs', 'equal'),                 // bronze
+            { // last place: normal white background, bold red number
+              type: 'expression',
+              formulae: [rf + '=MAX(' + rr + ')'],
+              style: { font: { bold: true, color: { argb: 'FFC00000' } } }
+            },
+            // 4th/5th: subtle blue, but never on the last place (that stays white)
+            rankRule('AND(' + rf + '=4,' + rf + '<>MAX(' + rr + '))', 'FFEEF3FA', 'expression'),
+            rankRule('AND(' + rf + '=5,' + rf + '<>MAX(' + rr + '))', 'FFEEF3FA', 'expression')
+          ]
+        });
+      }
+      (sheet.greyCols || []).forEach(function (ci) {
+        ws.getColumn(ci + 1).font = { color: { argb: 'FF999999' } };
+      });
     });
-    XLSX.writeFile(wb, filename);
+    var buf = await wb.xlsx.writeBuffer();
+    triggerDownload(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), filename);
   }
 
   function exportPDF(sheets, filename) {
@@ -928,6 +1077,8 @@
     doc.save(filename);
   }
 
+  try { exportName.value = localStorage.getItem('pubQuizExportName') || ''; } catch (e) {}
+
   exportBtn.addEventListener('click', function () {
     if (!exportStandings.checked && !exportBreakdown.checked && !exportState.checked) {
       showMsg(exportMsg, 'Select at least one content option.', 'error');
@@ -940,25 +1091,31 @@
 
     var fmt = exportFormat.value;
     var sheets = [];
+    var stateMeta = null;
     if (exportState.checked) {
-      var stateData = buildStateData();
-      var configData = buildConfigData();
-      if (fmt !== 'xlsx') stateData = flattenCells(stateData);
-      sheets.push({ name: 'Quiz State', data: stateData });
-      sheets.push({ name: 'Quiz Config', data: configData });
+      var state = buildStateData();
+      var stateData = fmt === 'xlsx' ? state.rows : flattenCells(state.rows);
+      stateMeta = state.meta;
+      sheets.push({ name: 'Quiz State', data: stateData, fillCols: state.meta.fillCols, greyCols: state.meta.greyCols, greenCols: state.meta.greenCols, rankCol: state.meta.rankCol, totalCol: state.meta.totalCol });
+      sheets.push({ name: 'Quiz Config', data: buildConfigData() });
     }
     if (exportStandings.checked) {
-      sheets.push({ name: 'Standings', data: buildStandingsData() });
+      var standingsData = buildStandingsData();
+      if (fmt === 'xlsx' && stateMeta) standingsData = buildLiveStandings(stateMeta, standingsData);
+      sheets.push({ name: 'Standings', data: standingsData });
     }
     if (exportBreakdown.checked) {
       sheets.push({ name: 'Round Breakdown', data: buildBreakdownData() });
     }
 
     var today = new Date().toISOString().slice(0, 10);
-    var filename = (exportState.checked ? 'pub-quiz-state-' : 'pub-quiz-results-') + today;
+    var filename = buildExportFilename(today);
+    try { localStorage.setItem('pubQuizExportName', exportName.value.trim()); } catch (e) {}
 
     if (fmt === 'xlsx') {
-      exportExcel(sheets, filename + '.xlsx');
+      exportExcel(sheets, filename + '.xlsx').catch(function (e) {
+        showMsg(exportMsg, 'Excel export failed: ' + e.message, 'error');
+      });
     } else if (fmt === 'csv') {
       exportCSV(sheets, filename + '.csv');
     } else if (fmt === 'pdf') {

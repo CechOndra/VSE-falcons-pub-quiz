@@ -178,6 +178,9 @@
           <option value="pdf">PDF (.pdf)</option>
         </select>
 
+        <label for="exportName">Quiz name (optional, used in the file name)</label>
+        <input type="text" id="exportName" placeholder="e.g. VSE Falcons Pub Quiz" style="margin-bottom:0.75rem;">
+
         <label>Content</label>
         <div class="toggle-row">
           <input type="checkbox" id="exportStandings" checked>
@@ -199,7 +202,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
   <script src="config.js"></script>
