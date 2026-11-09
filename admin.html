@@ -164,9 +164,44 @@
         </div>
       </div>
     </div>
+
+    <!-- Export Results -->
+    <div id="exportSection" class="card collapsible collapsed hidden">
+      <h2 class="collapsible-header">Export Results</h2>
+      <div class="collapsible-body">
+        <div id="exportMsg"></div>
+
+        <label for="exportFormat">Format</label>
+        <select id="exportFormat" style="width:auto;margin-bottom:0.75rem;">
+          <option value="xlsx">Excel (.xlsx)</option>
+          <option value="csv">CSV (.csv)</option>
+          <option value="pdf">PDF (.pdf)</option>
+        </select>
+
+        <label>Content</label>
+        <div class="toggle-row">
+          <input type="checkbox" id="exportStandings" checked>
+          <label for="exportStandings" style="display:inline;margin:0;">Standings</label>
+        </div>
+        <div class="toggle-row">
+          <input type="checkbox" id="exportBreakdown" checked>
+          <label for="exportBreakdown" style="display:inline;margin:0;">Round Breakdown</label>
+        </div>
+
+        <div class="toggle-row">
+          <input type="checkbox" id="exportState" checked>
+          <label for="exportState" style="display:inline;margin:0;">Quiz state (backup, editable in Excel)</label>
+        </div>
+
+        <button class="btn btn-primary" id="exportBtn" style="margin-top:0.5rem;">Export</button>
+      </div>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
   <script src="config.js"></script>
   <script src="js/supabase.js"></script>
   <script src="js/admin.js"></script>

@@ -58,6 +58,14 @@
   const summaryHead    = document.getElementById('summaryHead');
   const summaryBody    = document.getElementById('summaryBody');
 
+  const exportSection   = document.getElementById('exportSection');
+  const exportFormat    = document.getElementById('exportFormat');
+  const exportStandings = document.getElementById('exportStandings');
+  const exportBreakdown = document.getElementById('exportBreakdown');
+  const exportState     = document.getElementById('exportState');
+  const exportBtn       = document.getElementById('exportBtn');
+  const exportMsg       = document.getElementById('exportMsg');
+
   // ---- Helpers ----
   function showMsg(el, text, type) {
     el.innerHTML = '<div class="msg msg-' + type + '">' + escHtml(text) + '</div>';
@@ -128,6 +136,7 @@
       teamsSection.classList.add('hidden');
       shotsSection.classList.add('hidden');
       summarySection.classList.add('hidden');
+      exportSection.classList.add('hidden');
       return;
     }
 
@@ -363,6 +372,7 @@
   function showScoreSection() {
     scoreSection.classList.remove('hidden');
     summarySection.classList.remove('hidden');
+    exportSection.classList.remove('hidden');
 
     maxPtsLabel.textContent = config.questions_per_round;
 
@@ -647,6 +657,316 @@
     // Also re-render the score table for the current round (it may have new data)
     renderScoreTable();
   }
+
+  // ================================================================
+  //  EXPORT RESULTS
+  // ================================================================
+
+  function computeExportStandings() {
+    var map = {};
+    teams.forEach(function (t) {
+      map[t.id] = { id: t.id, name: t.name, players: t.player_count || 1, shots: t.shots_bonus || 0, rounds: {}, total: t.shots_bonus || 0 };
+    });
+    allScores.forEach(function (s) {
+      if (!map[s.team_id]) return;
+      var pts = s.standard_points + s.tipovacka_point;
+      map[s.team_id].rounds[s.round_number] = { std: s.standard_points, tip: s.tipovacka_point };
+      map[s.team_id].total += pts;
+    });
+    var list = Object.values(map);
+    list.sort(function (a, b) {
+      if (a.total !== b.total) return b.total - a.total;
+      return a.players - b.players;
+    });
+    return list;
+  }
+
+  function computeExportRanks(standings) {
+    var sorted = standings.slice().sort(function (a, b) {
+      if (a.total !== b.total) return b.total - a.total;
+      return a.players - b.players;
+    });
+    var nums = [];
+    for (var i = 0; i < sorted.length; i++) {
+      if (i === 0) {
+        nums.push(1);
+      } else if (sorted[i].total === sorted[i - 1].total &&
+                 sorted[i].players === sorted[i - 1].players) {
+        nums.push(nums[i - 1]);
+      } else {
+        nums.push(i + 1);
+      }
+    }
+    var counts = {};
+    nums.forEach(function (n) { counts[n] = (counts[n] || 0) + 1; });
+    var rankMap = {};
+    sorted.forEach(function (team, i) {
+      var n = nums[i];
+      rankMap[team.id] = { num: n, label: counts[n] > 1 ? 'T-' + n : '' + n };
+    });
+    return rankMap;
+  }
+
+  function getScoredRounds() {
+    var set = new Set();
+    allScores.forEach(function (s) { set.add(s.round_number); });
+    return Array.from(set).sort(function (a, b) { return a - b; });
+  }
+
+  function buildStandingsData() {
+    var standings = computeExportStandings();
+    var ranks = computeExportRanks(standings);
+    var header = ['Rank', 'Team', 'Players', 'Points'];
+    var rows = [header];
+    standings.forEach(function (t) {
+      var r = ranks[t.id];
+      rows.push([r.label, t.name, t.players, t.total]);
+    });
+    return rows;
+  }
+
+  function buildBreakdownData() {
+    var standings = computeExportStandings();
+    var ranks = computeExportRanks(standings);
+    var rounds = getScoredRounds();
+    var tipovacka = config.has_tipovacka || [];
+
+    var header = ['Rank', 'Team'];
+    rounds.forEach(function (r) { header.push('R' + r); });
+    header.push('Shots');
+    header.push('Total');
+
+    var rows = [header];
+    standings.forEach(function (t) {
+      var r = ranks[t.id];
+      var row = [r.label, t.name];
+      rounds.forEach(function (rn) {
+        var rd = t.rounds[rn];
+        if (!rd) {
+          row.push('-');
+        } else {
+          var hasTip = tipovacka[rn - 1] === true;
+          if (hasTip && rd.tip === 1) {
+            row.push(rd.std + ' + 1');
+          } else {
+            row.push(rd.std + rd.tip);
+          }
+        }
+      });
+      row.push(t.shots ? 1 : 0);
+      row.push(t.total);
+      return rows.push(row);
+    });
+    return rows;
+  }
+
+  // Column index (0-based) -> Excel letter (0 -> A, 26 -> AA)
+  function colLetter(i) {
+    var s = '';
+    i++;
+    while (i > 0) {
+      var m = (i - 1) % 26;
+      s = String.fromCharCode(65 + m) + s;
+      i = Math.floor((i - 1) / 26);
+    }
+    return s;
+  }
+
+  // Full quiz state: one row per team, raw inputs (players, shots, points per
+  // round, tipovacka per round) plus Total and Rank. Unscored rounds are left
+  // empty so the sheet can be filled in by hand. Total/Rank are live Excel
+  // formulas ({v, f} cells); non-xlsx formats flatten them to plain values.
+  function buildStateData() {
+    var tipovacka = config.has_tipovacka || [];
+    var scoreMap = {};
+    allScores.forEach(function (s) {
+      scoreMap[s.team_id + ':' + s.round_number] = s;
+    });
+
+    var header = ['Team', 'Players', 'Shots'];
+    var pointCols = [];
+    for (var r = 1; r <= config.rounds; r++) {
+      pointCols.push(header.length);
+      header.push('R' + r);
+      if (tipovacka[r - 1] === true) {
+        pointCols.push(header.length);
+        header.push('R' + r + ' Tip');
+      }
+    }
+    var totalCol = header.length;
+    var rankCol = totalCol + 1;
+    header.push('Total');
+    header.push('Rank');
+
+    var n = teams.length;
+    var first = 2, last = n + 1; // Excel rows (1 = header)
+    var totalRange = colLetter(totalCol) + first + ':' + colLetter(totalCol) + last;
+    var playersRange = 'B' + first + ':B' + last;
+
+    var rows = [header];
+    var totals = [];
+    teams.forEach(function (t) {
+      var players = t.player_count || 1;
+      var shots = t.shots_bonus ? 1 : 0;
+      var row = [t.name, players, shots];
+      var total = shots;
+      for (var rn = 1; rn <= config.rounds; rn++) {
+        var s = scoreMap[t.id + ':' + rn];
+        row.push(s ? s.standard_points : '');
+        if (s) total += s.standard_points;
+        if (tipovacka[rn - 1] === true) {
+          row.push(s ? s.tipovacka_point : '');
+          if (s) total += s.tipovacka_point;
+        }
+      }
+      totals.push(total);
+      row.push(total); // placeholder, replaced below
+      row.push('');
+      rows.push(row);
+    });
+
+    // Compute ranks (same rule as standings: points desc, fewer players first)
+    rows.slice(1).forEach(function (row, i) {
+      var t = teams[i];
+      var players = t.player_count || 1;
+      var rank = 1;
+      teams.forEach(function (o, j) {
+        var op = o.player_count || 1;
+        if (totals[j] > totals[i] || (totals[j] === totals[i] && op < players)) rank++;
+      });
+      var xr = i + 2; // Excel row
+      var firstPt = colLetter(pointCols[0]), lastPt = colLetter(pointCols[pointCols.length - 1]);
+      var totalF = 'C' + xr + '+SUM(' + firstPt + xr + ':' + lastPt + xr + ')';
+      var tc = colLetter(totalCol);
+      var rankF = '1+COUNTIF(' + totalRange + ',">"&' + tc + xr + ')'
+        + '+COUNTIFS(' + totalRange + ',' + tc + xr + ',' + playersRange + ',"<"&B' + xr + ')';
+      row[totalCol] = { t: 'n', v: totals[i], f: totalF };
+      row[rankCol]  = { t: 'n', v: rank, f: rankF };
+    });
+    return rows;
+  }
+
+  function buildConfigData() {
+    var tipovacka = config.has_tipovacka || [];
+    var tipRounds = [];
+    tipovacka.forEach(function (v, i) { if (v === true) tipRounds.push(i + 1); });
+    return [
+      ['Setting', 'Value'],
+      ['Exported at', new Date().toISOString()],
+      ['Rounds', config.rounds],
+      ['Questions per round', config.questions_per_round],
+      ['Tipovacka rounds', tipRounds.join(', ') || 'none'],
+      ['Published rounds', config.published_rounds || 0],
+      ['Teams', teams.length],
+      [],
+      ['Note', 'Fill points into the R columns of the Quiz State sheet. Total and Rank are formulas (Excel only). Ties are broken by fewer players.']
+    ];
+  }
+
+  function flattenCells(data) {
+    return data.map(function (row) {
+      return row.map(function (c) {
+        return (c && typeof c === 'object') ? c.v : c;
+      });
+    });
+  }
+
+  function triggerDownload(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function exportCSV(sheets, filename) {
+    var parts = [];
+    sheets.forEach(function (sheet) {
+      parts.push('--- ' + sheet.name + ' ---');
+      sheet.data.forEach(function (row) {
+        var line = row.map(function (cell) {
+          var s = '' + cell;
+          if (s.indexOf(',') !== -1 || s.indexOf('"') !== -1) {
+            return '"' + s.replace(/"/g, '""') + '"';
+          }
+          return s;
+        }).join(',');
+        parts.push(line);
+      });
+      parts.push('');
+    });
+    var blob = new Blob([parts.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    triggerDownload(blob, filename);
+  }
+
+  function exportExcel(sheets, filename) {
+    var wb = XLSX.utils.book_new();
+    sheets.forEach(function (sheet) {
+      var ws = XLSX.utils.aoa_to_sheet(sheet.data);
+      XLSX.utils.book_append_sheet(wb, ws, sheet.name);
+    });
+    XLSX.writeFile(wb, filename);
+  }
+
+  function exportPDF(sheets, filename) {
+    var doc = new jspdf.jsPDF();
+    sheets.forEach(function (sheet, idx) {
+      if (idx > 0) doc.addPage();
+      doc.setFontSize(14);
+      doc.text(sheet.name, 14, 15);
+      doc.autoTable({
+        head: [sheet.data[0]],
+        body: sheet.data.slice(1),
+        startY: 20,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [17, 48, 95] }
+      });
+    });
+    doc.save(filename);
+  }
+
+  exportBtn.addEventListener('click', function () {
+    if (!exportStandings.checked && !exportBreakdown.checked && !exportState.checked) {
+      showMsg(exportMsg, 'Select at least one content option.', 'error');
+      return;
+    }
+    if (!exportState.checked && allScores.length === 0) {
+      showMsg(exportMsg, 'No scores to export.', 'error');
+      return;
+    }
+
+    var fmt = exportFormat.value;
+    var sheets = [];
+    if (exportState.checked) {
+      var stateData = buildStateData();
+      var configData = buildConfigData();
+      if (fmt !== 'xlsx') stateData = flattenCells(stateData);
+      sheets.push({ name: 'Quiz State', data: stateData });
+      sheets.push({ name: 'Quiz Config', data: configData });
+    }
+    if (exportStandings.checked) {
+      sheets.push({ name: 'Standings', data: buildStandingsData() });
+    }
+    if (exportBreakdown.checked) {
+      sheets.push({ name: 'Round Breakdown', data: buildBreakdownData() });
+    }
+
+    var today = new Date().toISOString().slice(0, 10);
+    var filename = (exportState.checked ? 'pub-quiz-state-' : 'pub-quiz-results-') + today;
+
+    if (fmt === 'xlsx') {
+      exportExcel(sheets, filename + '.xlsx');
+    } else if (fmt === 'csv') {
+      exportCSV(sheets, filename + '.csv');
+    } else if (fmt === 'pdf') {
+      exportPDF(sheets, filename + '.pdf');
+    }
+
+    showMsg(exportMsg, 'Export complete.', 'success');
+  });
 
   // ---- Collapsible sections ----
   document.querySelectorAll('.collapsible-header').forEach(function (header) {
