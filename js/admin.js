@@ -48,6 +48,11 @@
   const teamsBody      = document.getElementById('teamsBody');
   const teamsMsg       = document.getElementById('teamsMsg');
   const saveTeamsBtn   = document.getElementById('saveTeamsBtn');
+  const teamsEditBtn   = document.getElementById('teamsEditBtn');
+  const teamsEditBar   = document.getElementById('teamsEditBar');
+  const teamsActionHead = document.getElementById('teamsActionHead');
+  const addTeamBtn     = document.getElementById('addTeamBtn');
+  const cancelTeamsBtn = document.getElementById('cancelTeamsBtn');
 
   const shotsSection   = document.getElementById('shotsSection');
   const shotsBody      = document.getElementById('shotsBody');
@@ -184,47 +189,186 @@
     await loadAllScores();
   }
 
+  // ---- Teams (view / edit) ----
+  var teamsEditing = false;
+
+  // Small icon next to teams that were edited/added after the quiz started.
+  // The note (teams.mod_note) is one line per change; shown as the tooltip.
+  function teamFlag(t) {
+    if (!t || !t.mod_note) return '';
+    return ' <span class="mod-flag" title="' + attrEsc('Modified after quiz start:\n' + t.mod_note) + '">\u270E</span>';
+  }
+
+  // Does the loaded teams data have the mod_note column (migration run)?
+  function modNoteSupported() {
+    return teams.length > 0 && Object.prototype.hasOwnProperty.call(teams[0], 'mod_note');
+  }
+
+  function stamp() {
+    var d = new Date();
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  // How far the quiz was when a change was made, e.g. "after round 3 was published"
+  function progressText() {
+    var pub = config.published_rounds || 0;
+    return pub > 0 ? 'after round ' + pub + ' was published' : 'before any round was published';
+  }
+
+  // Escape for use inside a double-quoted HTML attribute
+  function attrEsc(str) { return escHtml(str).replace(/"/g, '&quot;'); }
+
+  function teamEditRow(t) {
+    return '<tr data-team-id="' + (t ? t.id : '') + '"' + (t ? '' : ' data-new="1"') + '>'
+      + '<td><input type="text" class="team-name" maxlength="60" placeholder="Team name" value="' + attrEsc(t ? t.name : '') + '"></td>'
+      + '<td class="text-center"><input type="number" class="score-input team-players" min="1" step="1" value="' + (t ? (t.player_count || 1) : 1) + '"></td>'
+      + '<td class="text-center"><button type="button" class="btn btn-secondary team-remove">Remove</button></td>'
+      + '</tr>';
+  }
+
   function renderTeamsSection() {
-    if (teams.length === 0) { teamsSection.classList.add('hidden'); return; }
+    if (teams.length === 0 && !teamsEditing) { teamsSection.classList.add('hidden'); return; }
     teamsSection.classList.remove('hidden');
+    teamsActionHead.classList.toggle('hidden', !teamsEditing);
+    teamsEditBar.classList.toggle('hidden', !teamsEditing);
+    teamsEditBtn.classList.toggle('hidden', teamsEditing);
     var html = '';
     teams.forEach(function (t) {
-      html += '<tr>'
-        + '<td>' + escHtml(t.name) + '</td>'
-        + '<td class="text-center"><input type="number" class="score-input" min="1" step="1" '
-        + 'data-team-id="' + t.id + '" value="' + (t.player_count || 1) + '"></td>'
-        + '</tr>';
+      if (teamsEditing) {
+        html += teamEditRow(t);
+      } else {
+        var noteHtml = t.mod_note
+          ? '<div style="font-size:0.7rem;opacity:0.65;white-space:pre-line;">' + escHtml(t.mod_note) + '</div>' : '';
+        html += '<tr><td>' + escHtml(t.name) + teamFlag(t) + noteHtml + '</td><td class="text-center">' + (t.player_count || 1) + '</td></tr>';
+      }
     });
     teamsBody.innerHTML = html;
   }
 
+  teamsEditBtn.addEventListener('click', function () {
+    if (!confirmMidQuizEdit('team names, player counts or the list of teams',
+        'Renaming, adding or removing teams (and changing player counts, which decide ties) can change standings that are already scored or shown to players.')) return;
+    teamsEditing = true;
+    teamsMsg.innerHTML = '';
+    renderTeamsSection();
+  });
+
+  teamsBody.addEventListener('click', function (e) {
+    var btn = e.target.closest('.team-remove');
+    if (!btn) return;
+    var tr = btn.closest('tr');
+    if (tr.hasAttribute('data-new')) { tr.remove(); return; }
+    var nowRemoved = !tr.hasAttribute('data-removed');
+    tr.toggleAttribute('data-removed', nowRemoved);
+    tr.style.opacity = nowRemoved ? '0.4' : '';
+    btn.textContent = nowRemoved ? 'Undo' : 'Remove';
+    tr.querySelectorAll('input').forEach(function (i) { i.disabled = nowRemoved; });
+  });
+
+  addTeamBtn.addEventListener('click', function () {
+    teamsBody.insertAdjacentHTML('beforeend', teamEditRow(null));
+    var inputs = teamsBody.querySelectorAll('.team-name');
+    inputs[inputs.length - 1].focus();
+  });
+
+  cancelTeamsBtn.addEventListener('click', function () {
+    teamsEditing = false;
+    teamsMsg.innerHTML = '';
+    renderTeamsSection();
+  });
+
   saveTeamsBtn.addEventListener('click', async function () {
+    var removed = [], added = [], changed = [];
+    var seen = {};
+    var kept = 0;
+    var rows = teamsBody.querySelectorAll('tr');
+    for (var i = 0; i < rows.length; i++) {
+      var tr = rows[i];
+      var id = tr.getAttribute('data-team-id');
+      if (tr.hasAttribute('data-removed')) { removed.push(id); continue; }
+
+      var name = tr.querySelector('.team-name').value.trim();
+      var players = parseInt(tr.querySelector('.team-players').value, 10);
+      if (!name) { showMsg(teamsMsg, 'Every team needs a name (or use Remove).', 'error'); return; }
+      if (isNaN(players) || players < 1) { showMsg(teamsMsg, 'Invalid player count for "' + name + '".', 'error'); return; }
+      var key = name.toLowerCase();
+      if (seen[key]) { showMsg(teamsMsg, 'Duplicate team name: "' + name + '".', 'error'); return; }
+      seen[key] = true;
+      kept++;
+
+      if (tr.hasAttribute('data-new')) {
+        added.push({ name: name, player_count: players, mod_note: stamp() + ' added (' + progressText() + ')' });
+      } else {
+        var old = teams.find(function (t) { return t.id === id; });
+        if (old && (old.name !== name || (old.player_count || 1) !== players)) {
+          var parts = [];
+          if (old.name !== name) parts.push('renamed from "' + old.name + '"');
+          if ((old.player_count || 1) !== players) parts.push('players ' + (old.player_count || 1) + ' \u2192 ' + players);
+          var line = stamp() + ' ' + parts.join(', ') + ' (' + progressText() + ')';
+          changed.push({ id: id, name: name, player_count: players,
+                         mod_note: old.mod_note ? old.mod_note + '\n' + line : line });
+        }
+      }
+    }
+
+    if (kept === 0) { showMsg(teamsMsg, 'A quiz needs at least one team.', 'error'); return; }
+    var startedBefore = quizHasStarted();   // evaluated before anything changes
+    if (!removed.length && !added.length && !changed.length) { showMsg(teamsMsg, 'No changes to save.', 'info'); return; }
+
+    if (removed.length) {
+      var names = removed.map(function (rid) {
+        var t = teams.find(function (x) { return x.id === rid; });
+        return t ? t.name : rid;
+      });
+      var ok = confirm('Removing ' + (names.length === 1 ? 'this team' : 'these teams') + ' permanently deletes '
+        + 'all of their scores and bonus:\n\n' + names.join('\n') + '\n\nThis cannot be undone. Continue?');
+      if (!ok) return;
+    }
+
     saveTeamsBtn.disabled = true;
-    var inputs = teamsBody.querySelectorAll('input[data-team-id]');
-    var updates = [];
-    for (var i = 0; i < inputs.length; i++) {
-      var id = inputs[i].getAttribute('data-team-id');
-      var count = parseInt(inputs[i].value, 10);
-      if (isNaN(count) || count < 1) {
-        showMsg(teamsMsg, 'Invalid player count for a team.', 'error');
-        saveTeamsBtn.disabled = false;
-        return;
-      }
-      updates.push({ id: id, player_count: count });
+    function fail(err) {
+      showMsg(teamsMsg, err.message, 'error');
+      saveTeamsBtn.disabled = false;
     }
-    for (var i = 0; i < updates.length; i++) {
-      var { error } = await db.from('teams').update({ player_count: updates[i].player_count }).eq('id', updates[i].id);
-      if (error) {
-        showMsg(teamsMsg, error.message, 'error');
-        saveTeamsBtn.disabled = false;
-        return;
-      }
+
+    // Deletes first so a removed team's name can be reused
+    if (removed.length) {
+      var { error: dErr } = await db.from('teams').delete().in('id', removed);
+      if (dErr) return fail(dErr);
     }
-    showMsg(teamsMsg, 'Player counts saved.', 'success');
+    // Only record modification notes when the quiz had started and the column exists
+    var track = startedBefore && modNoteSupported();
+    for (var c = 0; c < changed.length; c++) {
+      var upd = { name: changed[c].name, player_count: changed[c].player_count };
+      if (track) upd.mod_note = changed[c].mod_note;
+      var { error: uErr } = await db.from('teams').update(upd).eq('id', changed[c].id);
+      if (uErr) return fail(uErr);
+    }
+    if (added.length) {
+      var addRows = added.map(function (a) {
+        return track ? a : { name: a.name, player_count: a.player_count };
+      });
+      var { error: iErr } = await db.from('teams').insert(addRows);
+      if (iErr) return fail(iErr);
+    }
+
     saveTeamsBtn.disabled = false;
-    // Refresh teams data
-    var { data: t } = await db.from('teams').select('*').order('name');
-    teams = t || [];
+    teamsEditing = false;
+    await loadConfig();
+
+    var parts = [];
+    if (added.length)   parts.push(added.length + ' added');
+    if (changed.length) parts.push(changed.length + ' changed');
+    if (removed.length) parts.push(removed.length + ' removed');
+    var msg = 'Teams saved (' + parts.join(', ') + ').';
+    if (added.length && allScores.length > 0) {
+      msg += ' New teams have no points for rounds that are already saved. Pick that round in Score Entry and save it again to enter them.';
+    }
+    if (startedBefore && !modNoteSupported() && teams.length > 0) {
+      msg += ' (Run migrations/2026-11-team-modified.sql in Supabase to also mark modified teams with an icon.)';
+    }
+    showMsg(teamsMsg, msg, 'success');
   });
 
   // ---- Drinking bonus ----
@@ -252,7 +396,7 @@
     var html = '';
     teams.forEach(function (t) {
       var v = t.shots_bonus || 0;
-      html += '<tr><td>' + escHtml(t.name) + '</td><td class="text-center">';
+      html += '<tr><td>' + escHtml(t.name) + teamFlag(t) + '</td><td class="text-center">';
       if (bs.mode === 'count') {
         html += '<input type="number" class="score-input" data-team-id="' + t.id + '" min="0" max="' + bs.max
           + '" step="1" value="' + v + '">';
@@ -342,13 +486,17 @@
       || teams.some(function (t) { return (t.shots_bonus || 0) > 0; });
   }
 
+  // Warn before editing setup-type data once the quiz is under way.
+  // Returns true when it's fine to continue.
+  function confirmMidQuizEdit(subject, consequence) {
+    if (!quizHasStarted()) return true;
+    return confirm('The quiz has already started.\n\n' + consequence
+      + ' You should normally never need to edit ' + subject + ' mid-quiz.\n\nEdit anyway?');
+  }
+
   bonusEditBtn.addEventListener('click', function () {
-    if (quizHasStarted()) {
-      var ok = confirm('The quiz has already started.\n\n'
-        + 'Changing the bonus settings now can change points and standings that are already scored or shown to players. '
-        + 'You should normally never need this.\n\nEdit the settings anyway?');
-      if (!ok) return;
-    }
+    if (!confirmMidQuizEdit('the bonus settings',
+        'Changing the bonus settings now can change points and standings that are already scored or shown to players.')) return;
     var bs = bonusSettings(config);
     bonusLabelInput.value = bs.label;
     bonusModeInput.value = bs.mode;
@@ -558,7 +706,7 @@
       var tip = ex ? ex.tipovacka_point : 0;
 
       html += '<tr data-team-id="' + t.id + '">';
-      html += '<td>' + escHtml(t.name) + '</td>';
+      html += '<td>' + escHtml(t.name) + teamFlag(t) + '</td>';
       html += '<td class="text-center">'
         + '<input type="number" class="score-input std-input" min="0" max="' + config.questions_per_round + '" step="0.5" value="' + pts + '">'
         + '</td>';
@@ -703,8 +851,8 @@
     var nameMap = {};
     var trEls = scoreBody.querySelectorAll('tr');
     trEls.forEach(function (tr) {
-      var name = tr.querySelector('td').textContent;
-      nameMap[name] = tr;
+      var team = teams.find(function (t) { return t.id === tr.getAttribute('data-team-id'); });
+      if (team) nameMap[team.name] = tr;
     });
 
     var notFound = [];
@@ -773,7 +921,7 @@
     var teamMap = {};
     teams.forEach(function (t) { teamMap[t.id] = t; });
     var map = {};
-    teams.forEach(function (t) { map[t.id] = { name: t.name, shots: bonusDisplay(t, bs), rounds: {}, total: bonusPoints(t, bs) }; });
+    teams.forEach(function (t) { map[t.id] = { name: t.name, flag: teamFlag(t), shots: bonusDisplay(t, bs), rounds: {}, total: bonusPoints(t, bs) }; });
     allScores.forEach(function (s) {
       if (!map[s.team_id]) return;
       var pts = s.standard_points + s.tipovacka_point;
@@ -785,7 +933,7 @@
 
     var bHtml = '';
     list.forEach(function (t) {
-      bHtml += '<tr><td>' + escHtml(t.name) + '</td>';
+      bHtml += '<tr><td>' + escHtml(t.name) + t.flag + '</td>';
       rounds.forEach(function (r) {
         var rd = t.rounds[r];
         if (!rd) {

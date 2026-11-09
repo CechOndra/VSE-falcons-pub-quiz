@@ -26,6 +26,7 @@ CREATE TABLE teams (
   name         text NOT NULL UNIQUE,
   player_count int NOT NULL DEFAULT 1,
   shots_bonus  int NOT NULL DEFAULT 0 CHECK (shots_bonus >= 0),   -- yes/no: 0|1, count: 0..bonus_max
+  mod_note     text,                                              -- notes on changes made after the quiz started
   created_at   timestamptz NOT NULL DEFAULT now()
 );
 
