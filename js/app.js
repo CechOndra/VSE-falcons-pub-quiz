@@ -320,6 +320,18 @@
     return v > 0 ? '' + v : '\u2212' + Math.abs(v);
   }
 
+  // Tap the Tipovacka header to show/hide the explanation (kept across auto-refreshes)
+  var showTipInfo = false;
+  function toggleTipInfo(e) {
+    if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+    if (!e.target.closest || !e.target.closest('.tip-th')) return;
+    e.preventDefault();
+    showTipInfo = !showTipInfo;
+    extrasNote.classList.toggle('hidden', !showTipInfo);
+  }
+  extrasHead.addEventListener('click', toggleTipInfo);
+  extrasHead.addEventListener('keydown', toggleTipInfo);
+
   function renderExtras(standings) {
     var cols = [];
     if (extras.drinking.enabled) cols.push({ key: 'drinking', label: extras.drinking.label });
@@ -332,12 +344,12 @@
     var hasTip = (config.has_tipovacka || []).some(function (v) { return v === true; });
 
     extrasTabBtn.classList.toggle('hidden', cols.length === 0);
-    if (cols.length === 0) { extrasHead.innerHTML = ''; extrasBody.innerHTML = ''; extrasNote.textContent = ''; return; }
+    if (cols.length === 0) { extrasHead.innerHTML = ''; extrasBody.innerHTML = ''; extrasNote.classList.add('hidden'); return; }
 
     var head = '<tr><th>Team</th>';
     cols.forEach(function (c) { head += '<th class="text-center">' + escHtml(c.label) + '</th>'; });
     head += '<th class="text-center">Extra total</th>';
-    if (hasTip) head += '<th class="text-center">Tipova\u010dka</th>';
+    if (hasTip) head += '<th class="text-center tip-th" role="button" tabindex="0">Tipova\u010dka <span class="info-i">\u24D8</span></th>';
     extrasHead.innerHTML = head + '</tr>';
 
     var pubRounds = config.published_rounds || 0;
@@ -365,7 +377,8 @@
       html += '</tr>';
     });
     extrasBody.innerHTML = html;
-    extrasNote.textContent = hasTip ? 'Tipova\u010dka points are already included in the round scores (the +1 in Rounds), not in Extra.' : '';
+    extrasNote.textContent = 'Tipova\u010dka points are already included in the round scores (the +1 in Rounds). They do not count into Extra points.';
+    extrasNote.classList.toggle('hidden', !(hasTip && showTipInfo));
   }
 
   function escHtml(str) {
