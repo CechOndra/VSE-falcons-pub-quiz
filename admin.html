@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin — Pub Quiz Scoreboard</title>
-  <link rel="stylesheet" href="css/style.css?v=20261110b">
+  <link rel="stylesheet" href="css/style.css?v=20261110c">
 </head>
 <body>
 
@@ -50,20 +50,8 @@
       </div>
       <div id="perRoundTip" class="hidden" style="margin-bottom:0.75rem;"></div>
 
-      <label for="setupBonusLabel">Extra points for drinking (bonus)</label>
-      <input type="text" id="setupBonusLabel" value="Drinking" maxlength="30" style="margin-bottom:0.5rem;">
-      <select id="setupBonusMode" style="width:auto;margin-bottom:0.5rem;">
-        <option value="yes_no">Yes / No (one-time)</option>
-        <option value="count">Count (1 point per round of drinks, up to a maximum)</option>
-      </select>
-      <div id="setupBonusYesRow" style="margin-bottom:0.75rem;">
-        <label for="setupBonusYes">Points for "yes"</label>
-        <input type="number" id="setupBonusYes" value="1" min="0" max="10" step="0.5" style="width:auto;">
-      </div>
-      <div id="setupBonusMaxRow" class="hidden" style="margin-bottom:0.75rem;">
-        <label for="setupBonusMax">Maximum orders (= maximum points)</label>
-        <input type="number" id="setupBonusMax" value="3" min="1" max="20" step="1" style="width:auto;">
-      </div>
+      <label>Extra points (besides the questions)</label>
+      <div id="setupExtrasBox" style="margin-bottom:0.75rem;"></div>
 
       <label for="setupTeams">Teams — one per line: Name, PlayerCount</label>
       <textarea id="setupTeams" rows="8" placeholder="Team Alpha, 5&#10;Team Beta, 4&#10;Team Gamma, 6"></textarea>
@@ -101,6 +89,19 @@
           <button class="btn btn-primary" id="saveRoundBtn">Save Round</button>
         </div>
 
+        <!-- 2x question for this round (only when enabled in the extras settings) -->
+        <div id="doubleBox" class="hidden" style="margin-bottom:0.75rem;">
+          <div class="toggle-row">
+            <input type="checkbox" id="doubleOn">
+            <label for="doubleOn" id="doubleOnLabel" style="display:inline;margin:0;">This round has a 2x question</label>
+          </div>
+          <div id="doubleQWrap" class="hidden" style="margin:0.25rem 0 0.25rem 1.6rem;">
+            <label for="doubleQ" style="display:inline;margin:0 0.4rem 0 0;">Question no(s).</label>
+            <input type="text" id="doubleQ" maxlength="30" placeholder="e.g. 6 or 6, 9" style="width:130px;">
+          </div>
+          <div id="doubleHint" style="font-size:0.75rem;opacity:0.7;margin-left:1.6rem;"></div>
+        </div>
+
         <!-- CSV Import -->
         <div class="csv-section" style="margin-top:0;">
           <h2>CSV Import</h2>
@@ -119,6 +120,7 @@
                 <th>Team</th>
                 <th class="text-center">Points (0-<span id="maxPtsLabel">10</span>)</th>
                 <th class="text-center hidden" id="tipHeader">Tipovacka</th>
+                <th class="text-center hidden" id="dblHeader">2x question pts</th>
               </tr>
             </thead>
             <tbody id="scoreBody"></tbody>
@@ -156,9 +158,9 @@
       </div>
     </div>
 
-    <!-- Drinking Bonus -->
+    <!-- Extra Points -->
     <div id="shotsSection" class="card collapsible collapsed hidden">
-      <h2 class="collapsible-header" id="bonusTitle">Drinking Bonus</h2>
+      <h2 class="collapsible-header" id="bonusTitle">Extra Points</h2>
       <div class="collapsible-body">
         <p id="bonusDesc" style="font-size:0.8rem;margin-bottom:0.5rem;color:var(--text);opacity:0.7;"></p>
 
@@ -169,20 +171,7 @@
         </div>
 
         <div id="bonusSettingsForm" class="hidden" style="margin-bottom:0.75rem;">
-          <label for="bonusLabelInput">Name</label>
-          <input type="text" id="bonusLabelInput" maxlength="30" style="margin-bottom:0.5rem;">
-          <select id="bonusModeInput" style="width:auto;margin-bottom:0.5rem;">
-            <option value="yes_no">Yes / No (one-time)</option>
-            <option value="count">Count (1 point per round of drinks, up to a maximum)</option>
-          </select>
-          <div id="bonusYesRow" style="margin-bottom:0.75rem;">
-            <label for="bonusYesInput">Points for "yes"</label>
-            <input type="number" id="bonusYesInput" min="0" max="10" step="0.5" style="width:auto;">
-          </div>
-          <div id="bonusMaxRow" class="hidden" style="margin-bottom:0.75rem;">
-            <label for="bonusMaxInput">Maximum orders (= maximum points)</label>
-            <input type="number" id="bonusMaxInput" min="1" max="20" step="1" style="width:auto;">
-          </div>
+          <div id="extrasEditBox" style="margin-bottom:0.75rem;"></div>
           <div style="display:flex;gap:0.5rem;">
             <button class="btn btn-primary" id="bonusSaveSettingsBtn">Save settings</button>
             <button class="btn btn-secondary" id="bonusCancelBtn">Cancel</button>
@@ -192,12 +181,7 @@
         <div id="shotsMsg"></div>
         <div class="table-wrap">
           <table>
-            <thead>
-              <tr>
-                <th>Team</th>
-                <th class="text-center" style="width:110px;" id="bonusColHead">Drinking</th>
-              </tr>
-            </thead>
+            <thead id="extrasEntryHead"></thead>
             <tbody id="shotsBody"></tbody>
           </table>
         </div>
@@ -288,9 +272,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
-  <script src="config.js?v=20261110b"></script>
-  <script src="js/supabase.js?v=20261110b"></script>
-  <script src="js/bonus.js?v=20261110b"></script>
-  <script src="js/admin.js?v=20261110b"></script>
+  <script src="config.js?v=20261110c"></script>
+  <script src="js/supabase.js?v=20261110c"></script>
+  <script src="js/bonus.js?v=20261110c"></script>
+  <script src="js/admin.js?v=20261110c"></script>
 </body>
 </html>

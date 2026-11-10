@@ -9,8 +9,7 @@
   // Sort state: { col: 'total' | round number, dir: 'desc' | 'asc' }
   var sortState = { col: 'total', dir: 'desc' };
   var showPlayers = false;
-  var showShots = false;
-  var bonus = bonusSettings(null);   // drinking bonus settings, refreshed with the config
+  var extras = extrasSettings(null);   // extra-points settings, refreshed with the config
 
   // ---- DOM refs ----
   const roundIndicator = document.getElementById('roundIndicator');
@@ -21,6 +20,11 @@
   const noData         = document.getElementById('noData');
   const viewStandings  = document.getElementById('view-standings');
   const viewBreakdown  = document.getElementById('view-breakdown');
+  const viewExtras     = document.getElementById('view-extras');
+  const extrasHead     = document.getElementById('extrasHead');
+  const extrasBody     = document.getElementById('extrasBody');
+  const extrasNote     = document.getElementById('extrasNote');
+  const extrasTabBtn   = document.getElementById('extrasTabBtn');
   const tabBtns        = document.querySelectorAll('.tab-btn');
 
   // ---- Tab switching ----
@@ -31,8 +35,8 @@
       var view = btn.getAttribute('data-view');
       viewStandings.classList.toggle('hidden', view !== 'standings');
       viewBreakdown.classList.toggle('hidden', view !== 'breakdown');
+      viewExtras.classList.toggle('hidden', view !== 'extras');
       togglePlayersBtn.classList.toggle('hidden', view !== 'standings');
-      toggleShotsBtn.classList.toggle('hidden', view !== 'breakdown');
     });
   });
 
@@ -41,15 +45,6 @@
   togglePlayersBtn.addEventListener('click', function () {
     showPlayers = !showPlayers;
     togglePlayersBtn.textContent = showPlayers ? 'Hide Players' : 'Show Players';
-    render();
-  });
-
-  // ---- Toggle shots column ----
-  var toggleShotsBtn = document.getElementById('toggleShotsBtn');
-  toggleShotsBtn.classList.add('hidden');
-  toggleShotsBtn.addEventListener('click', function () {
-    showShots = !showShots;
-    toggleShotsBtn.textContent = (showShots ? 'Hide ' : 'Show ') + bonus.label;
     render();
   });
 
@@ -62,8 +57,7 @@
     ]);
 
     config = cfgRes.data;
-    bonus = bonusSettings(config);
-    toggleShotsBtn.textContent = (showShots ? 'Hide ' : 'Show ') + bonus.label;
+    extras = extrasSettings(config);
     teams  = teamRes.data || [];
     var allScores = scoreRes.data || [];
 
@@ -78,11 +72,11 @@
   function computeStandings() {
     // Map team_id -> {name, rounds: {roundNum: {std, tip}}, total}
     var map = {};
+    var pubRounds = config ? (config.published_rounds || 0) : 0;
+    var byTeam = scoresByTeam(scores);   // scores only holds published rounds
     teams.forEach(function (t) {
-      var pubRounds = config ? (config.published_rounds || 0) : 0;
-      var shots = pubRounds > 0 ? bonusPoints(t, bonus) : 0;
-      var shotsText = pubRounds > 0 ? bonusDisplay(t, bonus) : '-';
-      map[t.id] = { id: t.id, name: t.name, players: t.player_count || 1, shots: shots, shotsText: shotsText, rounds: {}, total: shots };
+      var ex = pubRounds > 0 ? teamExtraBreakdown(t, byTeam[t.id] || [], extras) : teamExtraBreakdown({}, [], extras);
+      map[t.id] = { id: t.id, name: t.name, players: t.player_count || 1, extra: ex.total, extraDetail: ex, tipTotal: 0, rounds: {}, total: ex.total };
     });
 
     scores.forEach(function (s) {
@@ -93,6 +87,7 @@
         tip: s.tipovacka_point
       };
       map[s.team_id].total += pts;
+      map[s.team_id].tipTotal += s.tipovacka_point;
     });
 
     var list = Object.values(map);
@@ -188,6 +183,7 @@
       noData.classList.remove('hidden');
       viewStandings.classList.add('hidden');
       viewBreakdown.classList.add('hidden');
+      viewExtras.classList.add('hidden');
       roundIndicator.textContent = '';
       return;
     }
@@ -197,6 +193,7 @@
     var currentView = active ? active.getAttribute('data-view') : 'standings';
     viewStandings.classList.toggle('hidden', currentView !== 'standings');
     viewBreakdown.classList.toggle('hidden', currentView !== 'breakdown');
+    viewExtras.classList.toggle('hidden', currentView !== 'extras');
 
     var scored = scoredRounds();
     var roundsScored = scored.length;
@@ -216,6 +213,7 @@
     sortState.col = savedState.col;
     sortState.dir = savedState.dir;
     renderBreakdown(computeStandings(), scored);
+    renderExtras(computeStandings());
   }
 
   function renderStandings(standings) {
@@ -257,7 +255,7 @@
       var arrow = active ? (sortState.dir === 'desc' ? ' \u25BC' : ' \u25B2') : '';
       headHtml += '<th class="text-center sortable' + (active ? ' sort-active' : '') + '" data-sort-col="' + r + '">R' + r + arrow + '</th>';
     });
-    if (showShots) headHtml += '<th class="text-center">' + escHtml(bonus.label) + '</th>';
+    headHtml += '<th class="text-center">Extra</th>';
     var totalActive = sortState.col === 'total';
     var totalArrow = totalActive ? (sortState.dir === 'desc' ? ' \u25BC' : ' \u25B2') : '';
     headHtml += '<th class="text-right sortable' + (totalActive ? ' sort-active' : '') + '" data-sort-col="total">Total' + totalArrow + '</th></tr>';
@@ -304,12 +302,66 @@
         }
       });
 
-      if (showShots) bodyHtml += '<td class="text-center">' + team.shotsText + '</td>';
+      bodyHtml += '<td class="text-center">' + fmtExtra(team.extra) + '</td>';
       var totalCls = 'text-right' + (sortState.col === 'total' ? ' sort-active' : '');
       bodyHtml += '<td class="' + totalCls + '"><strong>' + team.total + '</strong></td>';
       bodyHtml += '</tr>';
     });
     breakdownBody.innerHTML = bodyHtml;
+  }
+
+  // Points with a sign for negatives, "-" for none
+  function fmtExtra(v) {
+    if (!v) return '-';
+    return v > 0 ? '' + v : '\u2212' + Math.abs(v);
+  }
+
+  function renderExtras(standings) {
+    var cols = [];
+    if (extras.drinking.enabled) cols.push({ key: 'drinking', label: extras.drinking.label });
+    if (extras.ticket.enabled)   cols.push({ key: 'ticket',   label: extras.ticket.label });
+    if (extras.party.enabled)    cols.push({ key: 'party',    label: extras.party.label });
+    if (extras.bet.enabled)      cols.push({ key: 'bet',      label: extras.bet.label });
+    if (extras.double.enabled)   cols.push({ key: 'double',   label: extras.double.label });
+    // Free adjustments (e.g. a penalty) only show up once at least one team has one
+    if (standings.some(function (t) { return t.extraDetail.adjust; })) cols.push({ key: 'adjust', label: 'Other' });
+    var hasTip = (config.has_tipovacka || []).some(function (v) { return v === true; });
+
+    extrasTabBtn.classList.toggle('hidden', cols.length === 0);
+    if (cols.length === 0) { extrasHead.innerHTML = ''; extrasBody.innerHTML = ''; extrasNote.textContent = ''; return; }
+
+    var head = '<tr><th>Team</th>';
+    cols.forEach(function (c) { head += '<th class="text-center">' + escHtml(c.label) + '</th>'; });
+    head += '<th class="text-center">Extra</th>';
+    if (hasTip) head += '<th class="text-center">Tipova\u010dka</th>';
+    extrasHead.innerHTML = head + '</tr>';
+
+    var pubRounds = config.published_rounds || 0;
+    var list = standings.slice();
+    list.sort(function (a, b) {
+      if (pubRounds === 0) return a.name.localeCompare(b.name);
+      if (a.extra !== b.extra) return b.extra - a.extra;
+      return a.name.localeCompare(b.name);
+    });
+
+    var html = '';
+    list.forEach(function (team) {
+      var d = team.extraDetail;
+      html += '<tr><td>' + escHtml(team.name) + '</td>';
+      cols.forEach(function (c) {
+        if (c.key === 'bet' && d.betPending) {
+          html += '<td class="text-center extra-pending" title="Bet placed, round not scored yet">\u2026</td>';
+        } else {
+          var v = d[c.key];
+          html += '<td class="text-center' + (v < 0 ? ' extra-neg' : '') + '">' + fmtExtra(v) + '</td>';
+        }
+      });
+      html += '<td class="text-center"><strong>' + fmtExtra(team.extra) + '</strong></td>';
+      if (hasTip) html += '<td class="text-center">' + (team.tipTotal || '-') + '</td>';
+      html += '</tr>';
+    });
+    extrasBody.innerHTML = html;
+    extrasNote.textContent = hasTip ? 'Tipova\u010dka points are already included in the round scores (the +1 in Rounds), not in Extra.' : '';
   }
 
   function escHtml(str) {

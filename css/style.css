@@ -98,6 +98,11 @@ body.has-bg-logo::before {
   margin-bottom: -2px;
   transition: color 0.15s, border-color 0.15s;
 }
+/* Extra points table: compact so several columns fit a phone in portrait */
+table.compact th, table.compact td { padding-left: 0.35rem; padding-right: 0.35rem; }
+table.compact thead th { font-size: 0.7rem; line-height: 1.15; vertical-align: bottom; }
+.extra-pending { opacity: 0.6; }
+.extra-neg { color: #ff8a80; }
 .tab-btn:hover { color: var(--white); }
 .tab-btn.active {
   color: var(--accent);
@@ -493,6 +498,8 @@ input[type="file"] {
 /* ---- Responsive ---- */
 
 @media (max-width: 600px) {
+  .tabs { flex-wrap: nowrap; overflow-x: auto; }
+  .tab-btn { padding: 0.5rem 0.65rem; font-size: 0.85rem; white-space: nowrap; }
   .navbar h1 { font-size: 1rem; }
   .container { padding: 0 0.5rem; }
   table { font-size: 0.75rem; }

@@ -60,25 +60,22 @@
   const saveShotsBtn   = document.getElementById('saveShotsBtn');
   const bonusTitle     = document.getElementById('bonusTitle');
   const bonusDesc      = document.getElementById('bonusDesc');
-  const bonusColHead   = document.getElementById('bonusColHead');
   const bonusSummary   = document.getElementById('bonusSummary');
   const bonusEditBtn   = document.getElementById('bonusEditBtn');
   const bonusSettingsView = document.getElementById('bonusSettingsView');
   const bonusSettingsForm = document.getElementById('bonusSettingsForm');
-  const bonusLabelInput   = document.getElementById('bonusLabelInput');
-  const bonusModeInput    = document.getElementById('bonusModeInput');
-  const bonusYesInput     = document.getElementById('bonusYesInput');
-  const bonusMaxInput     = document.getElementById('bonusMaxInput');
-  const bonusYesRow       = document.getElementById('bonusYesRow');
-  const bonusMaxRow       = document.getElementById('bonusMaxRow');
   const bonusSaveSettingsBtn = document.getElementById('bonusSaveSettingsBtn');
   const bonusCancelBtn    = document.getElementById('bonusCancelBtn');
-  const setupBonusLabel   = document.getElementById('setupBonusLabel');
-  const setupBonusMode    = document.getElementById('setupBonusMode');
-  const setupBonusYes     = document.getElementById('setupBonusYes');
-  const setupBonusMax     = document.getElementById('setupBonusMax');
-  const setupBonusYesRow  = document.getElementById('setupBonusYesRow');
-  const setupBonusMaxRow  = document.getElementById('setupBonusMaxRow');
+  const extrasEditBox     = document.getElementById('extrasEditBox');
+  const setupExtrasBox    = document.getElementById('setupExtrasBox');
+  const extrasEntryHead   = document.getElementById('extrasEntryHead');
+  const doubleBox         = document.getElementById('doubleBox');
+  const doubleOn          = document.getElementById('doubleOn');
+  const doubleQ           = document.getElementById('doubleQ');
+  const doubleQWrap       = document.getElementById('doubleQWrap');
+  const doubleHint        = document.getElementById('doubleHint');
+  const doubleOnLabel     = document.getElementById('doubleOnLabel');
+  const dblHeader         = document.getElementById('dblHeader');
 
   const summarySection = document.getElementById('summarySection');
   const summaryHead    = document.getElementById('summaryHead');
@@ -384,50 +381,256 @@
     showMsg(teamsMsg, msg, 'success');
   });
 
-  // ---- Drinking bonus ----
+  // ---- Extra points ----
   function fmtPts(n) { return (+n).toString(); }
 
-  function bonusSummaryText(bs) {
-    if (bs.mode === 'count') {
-      return bs.label + ': count mode, 1 point per round of drinks, up to ' + bs.max + ' (max ' + bs.max + ' points).';
-    }
-    return bs.label + ': yes / no, ' + fmtPts(bs.yesPoints) + ' point' + (bs.yesPoints === 1 ? '' : 's') + ' for "yes".';
+  // Points with a sign for negatives, "-" for none
+  function fmtExtra(v) {
+    if (!v) return '-';
+    return v > 0 ? '' + v : '−' + Math.abs(v);
   }
+
+  function ptsText(n) { return fmtPts(n) + ' point' + (+n === 1 ? '' : 's'); }
+
+  // One short line per enabled extra (settings summary, also used in the export)
+  function extrasSummaryLines(ex) {
+    var L = [];
+    if (ex.drinking.enabled) {
+      L.push(ex.drinking.label + ': ' + (ex.drinking.mode === 'count'
+        ? 'count, 1 point per round of drinks, up to ' + ex.drinking.max
+        : 'yes/no, ' + ptsText(ex.drinking.yesPoints)));
+    }
+    if (ex.ticket.enabled) L.push(ex.ticket.label + ': yes/no, ' + ptsText(ex.ticket.points));
+    if (ex.party.enabled)  L.push(ex.party.label + ': yes/no, ' + ptsText(ex.party.points));
+    if (ex.bet.enabled) {
+      L.push('Bet: +' + fmtPts(ex.bet.win) + ' if the guess is right, \u2212' + fmtPts(ex.bet.loss) + ' if wrong (one bet per team, '
+        + (ex.bet.round ? 'round ' + ex.bet.round + ' for everyone' : 'each team picks its round') + '; empty guess = no bet)');
+    }
+    if (ex.double.enabled) {
+      var used = Object.keys(ex.double.rounds).sort(function (a, b) { return a - b; }).map(function (r) {
+        var qs = ex.double.rounds[r];
+        return 'round ' + r + (qs.length ? ' (question' + (qs.length > 1 ? 's ' : ' ') + qs.join(', ') + ')' : '');
+      });
+      L.push(ex.double.mult + 'x question: up to ' + ex.double.max + ' round' + (ex.double.max === 1 ? '' : 's')
+        + (used.length ? ', set for ' + used.join(', ') : ', none set yet'));
+    }
+    return L;
+  }
+
+  // ---- Extras settings form (used for quiz setup and for "Edit settings") ----
+  function extrasFormHtml(p) {
+    function block(id, title, inner) {
+      return '<div style="margin-bottom:0.7rem;">'
+        + '<div class="toggle-row"><input type="checkbox" id="' + p + id + 'On">'
+        + '<label for="' + p + id + 'On" style="display:inline;margin:0;font-weight:600;">' + title + '</label></div>'
+        + '<div id="' + p + id + 'Box" style="margin-left:1.6rem;">' + inner + '</div></div>';
+    }
+    function field(id, label, attrs) {
+      return '<span style="display:inline-block;margin:0.2rem 0.9rem 0.2rem 0;white-space:nowrap;">'
+        + '<label for="' + p + id + '" style="display:inline;margin:0 0.4rem 0 0;">' + label + '</label>'
+        + '<input ' + attrs + ' id="' + p + id + '" style="width:' + (attrs.indexOf('type="text"') >= 0 ? '150px' : '75px') + ';"></span>';
+    }
+    var num = 'type="number" min="0" max="10" step="0.5"';
+    return block('Drink', 'Drinking (team orders drinks for every member)',
+          field('DrinkLabel', 'Name', 'type="text" maxlength="30"')
+        + '<select id="' + p + 'DrinkMode" style="width:auto;margin:0.2rem 0;">'
+        + '<option value="yes_no">Yes / No (one-time)</option>'
+        + '<option value="count">Count (1 point per round of drinks, up to a maximum)</option></select><br>'
+        + '<span id="' + p + 'DrinkYesRow">' + field('DrinkYes', 'Points for yes', num) + '</span>'
+        + '<span id="' + p + 'DrinkMaxRow">' + field('DrinkMax', 'Max orders (= max points)', 'type="number" min="1" max="20" step="1"') + '</span>')
+      + block('Ticket', 'Game ticket (yes/no)',
+          field('TicketLabel', 'Name', 'type="text" maxlength="30"') + field('TicketPts', 'Points', num))
+      + block('Party', 'After-party ticket (yes/no)',
+          field('PartyLabel', 'Name', 'type="text" maxlength="30"') + field('PartyPts', 'Points', num))
+      + block('Bet', 'Bet (team guesses the points it gets in a round, once per team)',
+          field('BetWin', 'Points if correct', num) + field('BetLoss', 'Points lost if wrong', num)
+          + field('BetRound', 'Fixed round for everyone (0 = each team picks)', 'type="number" min="0" max="20" step="1"'))
+      + block('Double', 'Multiplied question (the voted question counts extra)',
+          field('DoubleMult', 'Multiplier (2 = 2x)', 'type="number" min="2" max="10" step="1"')
+        + field('DoubleMax', 'Max rounds with one', 'type="number" min="1" max="10" step="1"'));
+  }
+
+  function fillExtrasForm(p, ex) {
+    function el(id) { return document.getElementById(p + id); }
+    el('DrinkOn').checked = ex.drinking.enabled;
+    el('DrinkLabel').value = ex.drinking.label;
+    el('DrinkMode').value = ex.drinking.mode;
+    el('DrinkYes').value = ex.drinking.yesPoints;
+    el('DrinkMax').value = ex.drinking.max;
+    el('TicketOn').checked = ex.ticket.enabled;
+    el('TicketLabel').value = ex.ticket.label;
+    el('TicketPts').value = ex.ticket.points;
+    el('PartyOn').checked = ex.party.enabled;
+    el('PartyLabel').value = ex.party.label;
+    el('PartyPts').value = ex.party.points;
+    el('BetOn').checked = ex.bet.enabled;
+    el('BetWin').value = ex.bet.win;
+    el('BetLoss').value = ex.bet.loss;
+    el('BetRound').value = ex.bet.round;
+    el('DoubleOn').checked = ex.double.enabled;
+    el('DoubleMax').value = ex.double.max;
+    el('DoubleMult').value = ex.double.mult;
+  }
+
+  // Show only the fields that belong to enabled extras / the chosen drinking mode
+  function syncExtrasForm(p) {
+    function el(id) { return document.getElementById(p + id); }
+    ['Drink', 'Ticket', 'Party', 'Bet', 'Double'].forEach(function (id) {
+      el(id + 'Box').classList.toggle('hidden', !el(id + 'On').checked);
+    });
+    var count = el('DrinkMode').value === 'count';
+    el('DrinkYesRow').classList.toggle('hidden', count);
+    el('DrinkMaxRow').classList.toggle('hidden', !count);
+  }
+
+  function renderExtrasForm(box, p, ex) {
+    box.innerHTML = extrasFormHtml(p);
+    fillExtrasForm(p, ex);
+    syncExtrasForm(p);
+    box.addEventListener('change', function () { syncExtrasForm(p); });
+  }
+
+  // Read + validate the form; returns the object to store in quiz_config, or null (message shown)
+  function readExtrasForm(p, msgEl, roundsCount) {
+    function el(id) { return document.getElementById(p + id); }
+    var err = null;
+    function val(id, what, min, max, half, enabled, def) {
+      var v = parseFloat(el(id).value);
+      var ok = !isNaN(v) && v >= min && v <= max && (half ? (v * 2) % 1 === 0 : Number.isInteger(v));
+      if (ok) return v;
+      if (enabled && !err) {
+        err = what + ' must be ' + (half ? min + ' to ' + max + ' in steps of 0.5' : 'a whole number from ' + min + ' to ' + max) + '.';
+      }
+      return def;
+    }
+    function txt(id, what, enabled, def) {
+      var t = el(id).value.trim();
+      if (t) return t;
+      if (enabled && !err) err = 'Enter a name for ' + what + '.';
+      return def;
+    }
+    var dOn = el('DrinkOn').checked, tOn = el('TicketOn').checked, pOn = el('PartyOn').checked,
+        bOn = el('BetOn').checked, xOn = el('DoubleOn').checked;
+
+    var out = {
+      bonus_label: txt('DrinkLabel', 'the drinking bonus', dOn, 'Drinking'),
+      bonus_mode: el('DrinkMode').value === 'count' ? 'count' : 'yes_no',
+      bonus_yes_points: val('DrinkYes', 'Drinking points for "yes"', 0, 10, true, dOn && el('DrinkMode').value !== 'count', 1),
+      bonus_max: val('DrinkMax', 'Drinking maximum orders', 1, 20, false, dOn && el('DrinkMode').value === 'count', 3),
+      extras: {
+        drinking: { enabled: dOn },
+        ticket: { enabled: tOn, label: txt('TicketLabel', 'the game ticket', tOn, 'Ticket'), points: val('TicketPts', 'Game ticket points', 0, 10, true, tOn, 1) },
+        party:  { enabled: pOn, label: txt('PartyLabel', 'the after-party ticket', pOn, 'After party'), points: val('PartyPts', 'After-party points', 0, 10, true, pOn, 1) },
+        bet:    { enabled: bOn, win: val('BetWin', 'Bet points if correct', 0, 10, true, bOn, 3), loss: val('BetLoss', 'Bet points lost if wrong', 0, 10, true, bOn, 1),
+                round: val('BetRound', 'Bet round', 0, 20, false, bOn, 0) },
+        double: { enabled: xOn, mult: val('DoubleMult', 'Multiplier', 2, 10, false, xOn, 2), max: val('DoubleMax', 'Max rounds with a multiplied question', 1, 10, false, xOn, 1), rounds: {} }
+      }
+    };
+    if (bOn && out.extras.bet.round > roundsCount && !err) err = 'The fixed bet round must be between 1 and ' + roundsCount + ' (or 0 so each team picks).';
+    if (err) { showMsg(msgEl, err, 'error'); return null; }
+    return out;
+  }
+
+  // ---- Extra points: entry table ----
+  function teamScoreRows(t) {
+    return allScores.filter(function (s) { return s.team_id === t.id; });
+  }
+
+  // The Adjustment note column stays hidden until you click the Adjustment column
+  // (or when a team already has a note). Toggling just shows/hides cells, so typed values are kept.
+  var adjustNotesOpen = false;
 
   function renderShotsSection() {
     if (teams.length === 0) { shotsSection.classList.add('hidden'); return; }
     shotsSection.classList.remove('hidden');
-    var bs = bonusSettings(config);
+    var ex = extrasSettings(config);
 
-    bonusTitle.textContent = bs.label + ' Bonus';
-    bonusColHead.textContent = bs.label;
-    bonusSummary.textContent = bonusSummaryText(bs);
-    bonusDesc.textContent = bs.mode === 'count'
-      ? 'Enter how many times the whole team ordered a round of drinks for every member (1 point each, max ' + bs.max + ').'
-      : 'Check the box if the team earned the bonus (+' + fmtPts(bs.yesPoints) + ' point' + (bs.yesPoints === 1 ? '' : 's') + ', one-time).';
+    var lines = extrasSummaryLines(ex);
+    bonusSummary.innerHTML = lines.length
+      ? lines.map(function (l) { return escHtml(l); }).join('<br>')
+      : 'No extra points are enabled.';
+    bonusDesc.textContent = 'Drinking, tickets, the bet and free adjustments are entered here. Bet: leave the guess empty if the team did not bet. The multiplied question is set per round in Enter Scores. An adjustment (e.g. -3 for phone use) shows to players only when it is not 0.';
+
+    var head = '<tr><th>Team</th>';
+    if (ex.drinking.enabled) head += '<th class="text-center">' + escHtml(ex.drinking.label) + '</th>';
+    if (ex.ticket.enabled)   head += '<th class="text-center">' + escHtml(ex.ticket.label) + '</th>';
+    if (ex.party.enabled)    head += '<th class="text-center">' + escHtml(ex.party.label) + '</th>';
+    if (ex.bet.enabled) {
+      head += ex.bet.round ? '<th class="text-center">Bet guess (round ' + ex.bet.round + ')</th>'
+                           : '<th class="text-center">Bet round</th><th class="text-center">Bet guess</th>';
+    }
+    if (ex.double.enabled) head += '<th class="text-center" title="Set per round in Enter Scores">' + ex.double.mult + 'x</th>';
+    var showNote = adjustNotesOpen || teams.some(function (t) { return t.extras && t.extras.adjust_note; });
+    head += '<th class="text-center adj-head" style="cursor:pointer;" title="Click to show/hide the note column">Adjustment <span style="opacity:0.6;">\u25BE</span></th>'
+      + '<th class="text-center adj-note-cell' + (showNote ? '' : ' hidden') + '">Adjustment note</th>';
+    head += '<th class="text-center">Extra total</th></tr>';
+    extrasEntryHead.innerHTML = head;
 
     var html = '';
     teams.forEach(function (t) {
-      var v = t.shots_bonus || 0;
-      html += '<tr><td>' + escHtml(t.name) + teamFlag(t) + '</td><td class="text-center">';
-      if (bs.mode === 'count') {
-        html += '<input type="number" class="score-input" data-team-id="' + t.id + '" min="0" max="' + bs.max
-          + '" step="1" value="' + v + '">';
-      } else {
-        html += '<input type="checkbox" data-team-id="' + t.id + '"' + (v ? ' checked' : '') + '>';
+      var te = (t.extras && typeof t.extras === 'object') ? t.extras : {};
+      var br = teamExtraBreakdown(t, teamScoreRows(t), ex);
+      html += '<tr><td>' + escHtml(t.name) + teamFlag(t) + '</td>';
+      if (ex.drinking.enabled) {
+        var v = t.shots_bonus || 0;
+        html += '<td class="text-center">' + (ex.drinking.mode === 'count'
+          ? '<input type="number" class="score-input" data-team-id="' + t.id + '" data-extra="drinking" min="0" max="' + ex.drinking.max + '" step="1" value="' + v + '">'
+          : '<input type="checkbox" data-team-id="' + t.id + '" data-extra="drinking"' + (v ? ' checked' : '') + '>') + '</td>';
       }
-      html += '</td></tr>';
+      if (ex.ticket.enabled) html += '<td class="text-center"><input type="checkbox" data-team-id="' + t.id + '" data-extra="ticket"' + (te.ticket ? ' checked' : '') + '></td>';
+      if (ex.party.enabled)  html += '<td class="text-center"><input type="checkbox" data-team-id="' + t.id + '" data-extra="party"' + (te.party ? ' checked' : '') + '></td>';
+      if (ex.bet.enabled) {
+        var bet = te.bet || {};
+        if (!ex.bet.round) {
+          html += '<td class="text-center"><input type="number" class="score-input" data-team-id="' + t.id + '" data-extra="betRound" min="1" max="' + config.rounds + '" step="1" value="' + (bet.round || '') + '"></td>';
+        }
+        html += '<td class="text-center"><input type="number" class="score-input" data-team-id="' + t.id + '" data-extra="betGuess" min="0" max="' + config.questions_per_round + '" step="0.5" value="' + (bet.guess !== undefined ? bet.guess : '') + '"></td>';
+      }
+      if (ex.double.enabled) {
+        // Read-only: where it came from (entered per round in Enter Scores)
+        var dblParts = teamScoreRows(t).filter(function (s) { return ex.double.rounds[s.round_number] !== undefined && Number(s.double_points) > 0; })
+          .sort(function (a, b) { return a.round_number - b.round_number; })
+          .map(function (s) { return 'R' + s.round_number + ': ' + fmtExtra((ex.double.mult - 1) * Number(s.double_points)); });
+        html += '<td class="text-center" style="opacity:0.85;" title="' + attrEsc(dblParts.join(', ')) + '">' + fmtExtra(br.double) + '</td>';
+      }
+      html += '<td class="text-center"><input type="number" class="score-input" data-team-id="' + t.id + '" data-extra="adjust" step="0.5" min="-100" max="100" placeholder="0" value="' + (te.adjust ? te.adjust : '') + '"></td>'
+        + '<td class="text-center adj-note-cell' + (showNote ? '' : ' hidden') + '"><input type="text" data-team-id="' + t.id + '" data-extra="adjustNote" maxlength="80" placeholder="reason (admin only)" style="width:150px;" value="' + attrEsc(te.adjust_note || '') + '"></td>';
+      var detail = [];
+      if (ex.drinking.enabled && br.drinking) detail.push(ex.drinking.label + ' ' + fmtExtra(br.drinking));
+      if (br.ticket) detail.push(ex.ticket.label + ' ' + fmtExtra(br.ticket));
+      if (br.party) detail.push(ex.party.label + ' ' + fmtExtra(br.party));
+      if (br.bet) detail.push('Bet ' + fmtExtra(br.bet));
+      if (br.betPending) detail.push('Bet pending');
+      if (br.double) detail.push(ex.double.mult + 'x ' + fmtExtra(br.double));
+      if (br.adjust) detail.push('Adjustment ' + fmtExtra(br.adjust));
+      html += '<td class="text-center" title="' + attrEsc(detail.join(', ')) + '"><strong>' + fmtExtra(br.total) + '</strong>'
+        + (br.betPending ? ' <span style="opacity:0.6;">(bet pending)</span>' : '') + '</td></tr>';
     });
     shotsBody.innerHTML = html;
 
-    checkAllShotsBtn.classList.toggle('hidden', bs.mode === 'count');
+    var yesNoDrink = ex.drinking.enabled && ex.drinking.mode !== 'count';
+    checkAllShotsBtn.classList.toggle('hidden', !yesNoDrink);
     checkAllShotsBtn.textContent = 'Check All';
   }
 
+  function setAdjustNotes(open) {
+    adjustNotesOpen = open;
+    document.querySelectorAll('#shotsSection .adj-note-cell').forEach(function (c) { c.classList.toggle('hidden', !open); });
+  }
+  extrasEntryHead.addEventListener('click', function (e) {
+    if (!e.target.closest('.adj-head')) return;
+    var cell = shotsSection.querySelector('.adj-note-cell');
+    setAdjustNotes(cell ? cell.classList.contains('hidden') : true);
+  });
+  shotsBody.addEventListener('focusin', function (e) {
+    if (e.target.matches('[data-extra="adjust"]')) setAdjustNotes(true);
+  });
+
   var checkAllShotsBtn = document.getElementById('checkAllShotsBtn');
   checkAllShotsBtn.addEventListener('click', function () {
-    var allChecked = shotsBody.querySelectorAll('input[type="checkbox"][data-team-id]');
-    var unchecked = shotsBody.querySelectorAll('input[type="checkbox"][data-team-id]:not(:checked)');
+    var sel = 'input[type="checkbox"][data-extra="drinking"]';
+    var allChecked = shotsBody.querySelectorAll(sel);
+    var unchecked = shotsBody.querySelectorAll(sel + ':not(:checked)');
     // If all are checked, uncheck all; otherwise check all
     var newState = unchecked.length > 0;
     allChecked.forEach(function (cb) { cb.checked = newState; });
@@ -435,68 +638,92 @@
   });
 
   saveShotsBtn.addEventListener('click', async function () {
-    var bs = bonusSettings(config);
-    var inputs = shotsBody.querySelectorAll('input[data-team-id]');
+    var ex = extrasSettings(config);
     var updates = [];
-    for (var i = 0; i < inputs.length; i++) {
-      var id = inputs[i].getAttribute('data-team-id');
-      var val;
-      if (bs.mode === 'count') {
-        var raw = inputs[i].value.trim();
-        val = raw === '' ? 0 : Number(raw);
-        if (!Number.isInteger(val) || val < 0 || val > bs.max) {
-          showMsg(shotsMsg, 'Enter a whole number from 0 to ' + bs.max + ' for every team.', 'error');
+    for (var i = 0; i < teams.length; i++) {
+      var t = teams[i];
+      function field(name) { return shotsBody.querySelector('[data-team-id="' + t.id + '"][data-extra="' + name + '"]'); }
+      var payload = {};
+
+      if (ex.drinking.enabled) {
+        var d = field('drinking'), val;
+        if (ex.drinking.mode === 'count') {
+          var raw = d.value.trim();
+          val = raw === '' ? 0 : Number(raw);
+          if (!Number.isInteger(val) || val < 0 || val > ex.drinking.max) {
+            showMsg(shotsMsg, ex.drinking.label + ': enter a whole number from 0 to ' + ex.drinking.max + ' for every team.', 'error');
+            return;
+          }
+        } else {
+          val = d.checked ? 1 : 0;
+        }
+        payload.shots_bonus = val;
+      }
+
+      {
+        var merged = Object.assign({}, (t.extras && typeof t.extras === 'object') ? t.extras : {});
+        if (ex.ticket.enabled) merged.ticket = field('ticket').checked ? 1 : 0;
+        if (ex.party.enabled)  merged.party  = field('party').checked ? 1 : 0;
+        if (ex.bet.enabled) {
+          // Empty guess = the team did not bet (nothing won or lost)
+          var fixedR = ex.bet.round;
+          var rEl = field('betRound');
+          var rRaw = rEl ? rEl.value.trim() : '';
+          var gRaw = field('betGuess').value.trim();
+          if (gRaw === '' && rRaw === '') {
+            delete merged.bet;
+          } else {
+            var br = fixedR || Number(rRaw), bg = Number(gRaw);
+            var roundBad = !fixedR && (rRaw === '' || !Number.isInteger(br) || br < 1 || br > config.rounds);
+            if (gRaw === '' || roundBad || isNaN(bg) || bg < 0 || bg > config.questions_per_round || (bg * 2) % 1 !== 0) {
+              showMsg(shotsMsg, 'Bet for "' + t.name + '": ' + (fixedR ? '' : 'enter a round 1-' + config.rounds + ' and ')
+                + 'a guess 0-' + config.questions_per_round + ' in steps of 0.5 (or clear it to mean no bet).', 'error');
+              return;
+            }
+            merged.bet = { round: br, guess: bg };
+          }
+        }
+        // Free adjustment (always available): +/- points with an admin-only note
+        var aRaw = field('adjust').value.trim();
+        var aNum = aRaw === '' ? 0 : Number(aRaw);
+        if (isNaN(aNum) || aNum < -100 || aNum > 100 || (aNum * 2) % 1 !== 0) {
+          showMsg(shotsMsg, 'Adjustment for "' + t.name + '" must be a number from -100 to 100 in steps of 0.5.', 'error');
           return;
         }
-      } else {
-        val = inputs[i].checked ? 1 : 0;
+        if (aNum !== 0) merged.adjust = aNum; else delete merged.adjust;
+        var aNote = field('adjustNote').value.trim();
+        if (aNote && aNum !== 0) merged.adjust_note = aNote; else delete merged.adjust_note;
+        payload.extras = merged;
       }
-      updates.push({ id: id, val: val });
+      updates.push({ id: t.id, payload: payload });
     }
 
     saveShotsBtn.disabled = true;
     for (var j = 0; j < updates.length; j++) {
-      var { error } = await db.from('teams').update({ shots_bonus: updates[j].val }).eq('id', updates[j].id);
+      if (Object.keys(updates[j].payload).length === 0) continue;
+      var { error } = await db.from('teams').update(updates[j].payload).eq('id', updates[j].id);
       if (error) {
         showMsg(shotsMsg, error.message, 'error');
         saveShotsBtn.disabled = false;
         return;
       }
     }
-    showMsg(shotsMsg, bs.label + ' bonus saved.', 'success');
     saveShotsBtn.disabled = false;
-    var { data: t } = await db.from('teams').select('*').order('name');
-    teams = t || [];
+    var { data: tt } = await db.from('teams').select('*').order('name');
+    teams = tt || [];
+    renderShotsSection();
     renderSummary();
+    renderChecks();
+    showMsg(shotsMsg, 'Extra points saved.', 'success');
   });
-
-  // Show/hide the "points for yes" and "maximum" fields for the chosen mode
-  function toggleBonusFields(modeEl, yesRow, maxRow) {
-    var count = modeEl.value === 'count';
-    yesRow.classList.toggle('hidden', count);
-    maxRow.classList.toggle('hidden', !count);
-  }
-  setupBonusMode.addEventListener('change', function () { toggleBonusFields(setupBonusMode, setupBonusYesRow, setupBonusMaxRow); });
-  bonusModeInput.addEventListener('change', function () { toggleBonusFields(bonusModeInput, bonusYesRow, bonusMaxRow); });
-
-  // Read + validate bonus settings from a set of inputs; returns object or null (message shown)
-  function readBonusInputs(labelEl, modeEl, yesEl, maxEl, msgEl) {
-    var label = labelEl.value.trim();
-    if (!label) { showMsg(msgEl, 'Enter a name for the bonus.', 'error'); return null; }
-    var yes = parseFloat(yesEl.value);
-    if (isNaN(yes) || yes < 0 || yes > 10 || (yes * 2) % 1 !== 0) {
-      showMsg(msgEl, 'Points for "yes" must be 0-10 in steps of 0.5.', 'error'); return null;
-    }
-    var max = parseInt(maxEl.value, 10);
-    if (isNaN(max) || max < 1 || max > 20) { showMsg(msgEl, 'Maximum orders must be a whole number from 1 to 20.', 'error'); return null; }
-    return { bonus_label: label, bonus_mode: modeEl.value === 'count' ? 'count' : 'yes_no', bonus_yes_points: yes, bonus_max: max };
-  }
 
   // Has the quiz already started? (anything scored, published or bonus given)
   function quizHasStarted() {
     return allScores.length > 0
       || (config.published_rounds || 0) > 0
-      || teams.some(function (t) { return (t.shots_bonus || 0) > 0; });
+      || teams.some(function (t) {
+        return (t.shots_bonus || 0) > 0 || (t.extras && Object.keys(t.extras).length > 0);
+      });
   }
 
   // Warn before editing setup-type data once the quiz is under way.
@@ -508,14 +735,9 @@
   }
 
   bonusEditBtn.addEventListener('click', function () {
-    if (!confirmMidQuizEdit('the bonus settings',
-        'Changing the bonus settings now can change points and standings that are already scored or shown to players.')) return;
-    var bs = bonusSettings(config);
-    bonusLabelInput.value = bs.label;
-    bonusModeInput.value = bs.mode;
-    bonusYesInput.value = bs.yesPoints;
-    bonusMaxInput.value = bs.max;
-    toggleBonusFields(bonusModeInput, bonusYesRow, bonusMaxRow);
+    if (!confirmMidQuizEdit('the extra points settings',
+        'Changing the extra points settings now can change points and standings that are already scored or shown to players.')) return;
+    renderExtrasForm(extrasEditBox, 'ed', extrasSettings(config));
     bonusSettingsView.classList.add('hidden');
     bonusSettingsForm.classList.remove('hidden');
   });
@@ -526,14 +748,25 @@
   });
 
   bonusSaveSettingsBtn.addEventListener('click', async function () {
-    var next = readBonusInputs(bonusLabelInput, bonusModeInput, bonusYesInput, bonusMaxInput, shotsMsg);
+    var next = readExtrasForm('ed', shotsMsg, config.rounds);
     if (!next) return;
 
-    // Teams whose stored value would exceed the new limit get reduced to it
+    // Keep the rounds already marked as 2x; they can't exceed the new maximum
+    var cur = extrasSettings(config);
+    var usedRounds = Object.keys(cur.double.rounds).length;
+    if (next.extras.double.enabled && usedRounds > next.extras.double.max) {
+      showMsg(shotsMsg, usedRounds + ' rounds are already marked as multiplied. Set the maximum to at least ' + usedRounds
+        + ' (or untick the multiplied question in those rounds first).', 'error');
+      return;
+    }
+    next.extras.double.rounds = cur.double.rounds;
+
+    // Drinking values above the new limit get reduced to it
     var newMax = next.bonus_mode === 'count' ? next.bonus_max : 1;
-    var affected = teams.filter(function (t) { return (t.shots_bonus || 0) > newMax; });
+    var affected = next.extras.drinking.enabled
+      ? teams.filter(function (t) { return (t.shots_bonus || 0) > newMax; }) : [];
     if (affected.length > 0) {
-      var okClamp = confirm(affected.length + ' team(s) currently have more than the new maximum ('
+      var okClamp = confirm(affected.length + ' team(s) currently have more than the new drinking maximum ('
         + newMax + ') and will be reduced to ' + newMax + '.\n\nContinue?');
       if (!okClamp) return;
     }
@@ -555,6 +788,14 @@
     await loadConfig();
     showMsg(shotsMsg, 'Settings saved.', 'success');
   });
+
+  // Defaults for a new quiz: everything on (untick what a quiz does not use)
+  function setupDefaults() {
+    var d = extrasSettings({ extras: { ticket: { enabled: true }, party: { enabled: true }, bet: { enabled: true }, double: { enabled: true } } });
+    d.drinking.label = 'Drinking';
+    return d;
+  }
+  renderExtrasForm(setupExtrasBox, 'setup', setupDefaults());
 
   // Per-round Tipovacka toggles when "all rounds" is unchecked
   setupTipAll.addEventListener('change', updateTipToggles);
@@ -610,7 +851,7 @@
     var unique = new Set(parsedTeams.map(function (t) { return t.name; }));
     if (unique.size !== parsedTeams.length) { showMsg(setupMsg, 'Duplicate team names found.', 'error'); return; }
 
-    var bonus = readBonusInputs(setupBonusLabel, setupBonusMode, setupBonusYes, setupBonusMax, setupMsg);
+    var bonus = readExtrasForm('setup', setupMsg, parseInt(setupRounds.value, 10) || 5);
     if (!bonus) return;
 
     setupSaveBtn.disabled = true;
@@ -707,6 +948,23 @@
 
     tipHeader.classList.toggle('hidden', !hasTip);
 
+    // 2x question controls for this round
+    var exs = extrasSettings(config);
+    var isDouble = exs.double.enabled && exs.double.rounds[rn] !== undefined;
+    var usedDoubles = Object.keys(exs.double.rounds).length;
+    doubleBox.classList.toggle('hidden', !exs.double.enabled);
+    if (exs.double.enabled) {
+      doubleOnLabel.textContent = 'This round has a ' + exs.double.mult + 'x question (or more than one)';
+      dblHeader.textContent = 'Points on the ' + exs.double.mult + 'x question(s)';
+      doubleOn.checked = isDouble;
+      doubleOn.disabled = !isDouble && usedDoubles >= exs.double.max;
+      doubleQ.value = isDouble ? exs.double.rounds[rn].join(', ') : '';
+      doubleQWrap.classList.toggle('hidden', !isDouble);
+      doubleHint.textContent = usedDoubles + ' of ' + exs.double.max + ' ' + exs.double.mult + 'x round' + (exs.double.max === 1 ? '' : 's') + ' used'
+        + (doubleOn.disabled ? ' (limit reached; change it in Extra Points > Edit settings)' : '');
+    }
+    dblHeader.classList.toggle('hidden', !isDouble);
+
     // Find existing scores for this round
     var existing = {};
     allScores.forEach(function (s) {
@@ -732,9 +990,15 @@
       } else {
         html += '<td class="text-center hidden"></td>';
       }
+      if (exs.double.enabled) {
+        var dv = ex && ex.double_points ? Number(ex.double_points) : 0;
+        html += '<td class="text-center dbl-cell' + (isDouble ? '' : ' hidden') + '">'
+          + '<select class="dbl-select" data-val="' + dv + '" style="width:auto;"></select></td>';
+      }
       html += '</tr>';
     });
     scoreBody.innerHTML = html;
+    fillDblOptions();
 
     // Warn when multiple tipovacka are checked
     if (hasTip) {
@@ -744,6 +1008,34 @@
       updateTipWarning();
     }
   }
+
+  // "6, 9" -> [6, 9]
+  function parseQuestions(text) {
+    return text.split(/[,;\s]+/).map(function (q) { return parseInt(q, 10); })
+      .filter(function (q) { return q > 0; });
+  }
+
+  // Dropdown 0, 0.5, ... up to the number of multiplied questions (one point each at most)
+  function fillDblOptions() {
+    var count = Math.max(1, parseQuestions(doubleQ.value).length);
+    scoreBody.querySelectorAll('.dbl-select').forEach(function (sel) {
+      var cur = sel.value !== '' ? parseFloat(sel.value) : parseFloat(sel.getAttribute('data-val')) || 0;
+      var opts = [];
+      for (var v = 0; v <= count + 1e-9; v += 0.5) opts.push(v);
+      if (opts.indexOf(cur) === -1) opts.push(cur);
+      sel.innerHTML = opts.map(function (o) {
+        return '<option value="' + o + '"' + (o === cur ? ' selected' : '') + '>' + o + '</option>';
+      }).join('');
+    });
+  }
+  doubleQ.addEventListener('input', fillDblOptions);
+
+  doubleOn.addEventListener('change', function () {
+    var on = doubleOn.checked;
+    doubleQWrap.classList.toggle('hidden', !on);
+    dblHeader.classList.toggle('hidden', !on);
+    scoreBody.querySelectorAll('.dbl-cell').forEach(function (c) { c.classList.toggle('hidden', !on); });
+  });
 
   function updateTipWarning() {
     var checked = scoreBody.querySelectorAll('.tip-check:checked');
@@ -767,6 +1059,16 @@
     var tipovacka = config.has_tipovacka || [];
     var hasTip = tipovacka[rn - 1] === true;
 
+    // 2x question state for this round
+    var exs = extrasSettings(config);
+    var wantDouble = exs.double.enabled && doubleOn.checked;
+    var wasDouble = exs.double.rounds[rn] !== undefined;
+    var qArr = wantDouble ? parseQuestions(doubleQ.value) : [];
+    if (wantDouble && !wasDouble && Object.keys(exs.double.rounds).length >= exs.double.max) {
+      showMsg(scoreMsg, 'The maximum of ' + exs.double.max + ' ' + exs.double.mult + 'x round(s) is already used.', 'error');
+      return;
+    }
+
     // Determine which teams get tipovacka
     var tipTeamIds = {};
     if (hasTip) {
@@ -788,13 +1090,18 @@
       if (isNaN(pts) || pts < 0 || pts > config.questions_per_round) { valid = false; return; }
       if (pts % 0.5 !== 0) { valid = false; return; }
 
-      rows.push({
+      var scoreRow = {
         team_id: teamId,
         round_number: rn,
         standard_points: pts,
         tipovacka_point: (hasTip && tipTeamIds[teamId]) ? 1 : 0,
         updated_at: new Date().toISOString()
-      });
+      };
+      if (exs.double.enabled) {
+        var dsel = tr.querySelector('.dbl-select');
+        scoreRow.double_points = (wantDouble && dsel) ? parseFloat(dsel.value) : 0;
+      }
+      rows.push(scoreRow);
     });
 
     if (!valid || rows.length !== teams.length) {
@@ -803,6 +1110,20 @@
     }
 
     saveRoundBtn.disabled = true;
+
+    // Record which round has the 2x question (kept in the quiz settings)
+    var doubleChanged = exs.double.enabled
+      && (wantDouble !== wasDouble || (wantDouble && JSON.stringify(qArr) !== JSON.stringify(exs.double.rounds[rn])));
+    if (doubleChanged) {
+      var newRounds = Object.assign({}, exs.double.rounds);
+      if (wantDouble) newRounds[rn] = qArr; else delete newRounds[rn];
+      var newExtras = Object.assign({}, config.extras || {});
+      newExtras.double = Object.assign({}, newExtras.double || {}, { rounds: newRounds });
+      var { error: cErr } = await db.from('quiz_config').update({ extras: newExtras }).eq('id', 1);
+      if (cErr) { saveRoundBtn.disabled = false; showMsg(scoreMsg, cErr.message, 'error'); return; }
+      config.extras = newExtras;
+    }
+
     var { error } = await db.from('scores').upsert(rows, { onConflict: 'team_id,round_number' });
     saveRoundBtn.disabled = false;
 
@@ -906,6 +1227,7 @@
     allScores = data || [];
     renderSummary();
     renderChecks();
+    renderShotsSection();
   }
 
   function renderSummary() {
@@ -927,8 +1249,7 @@
     // Header
     var hHtml = '<tr><th>Team</th>';
     rounds.forEach(function (r) { hHtml += '<th class="text-center">R' + r + '</th>'; });
-    var bs = bonusSettings(config);
-    hHtml += '<th class="text-center">' + escHtml(bs.label) + '</th>';
+    hHtml += '<th class="text-center">Extra</th>';
     hHtml += '<th class="text-right">Total</th></tr>';
     summaryHead.innerHTML = hHtml;
 
@@ -936,7 +1257,11 @@
     var teamMap = {};
     teams.forEach(function (t) { teamMap[t.id] = t; });
     var map = {};
-    teams.forEach(function (t) { map[t.id] = { name: t.name, flag: teamFlag(t), shots: bonusDisplay(t, bs), rounds: {}, total: bonusPoints(t, bs) }; });
+    var exSum = extrasSettings(config), byTeamSum = scoresByTeam(allScores);
+    teams.forEach(function (t) {
+      var brs = teamExtraBreakdown(t, byTeamSum[t.id] || [], exSum);
+      map[t.id] = { name: t.name, flag: teamFlag(t), extra: brs.total, rounds: {}, total: brs.total };
+    });
     allScores.forEach(function (s) {
       if (!map[s.team_id]) return;
       var pts = s.standard_points + s.tipovacka_point;
@@ -962,7 +1287,7 @@
           }
         }
       });
-      bHtml += '<td class="text-center">' + t.shots + '</td>';
+      bHtml += '<td class="text-center">' + fmtExtra(t.extra) + '</td>';
       bHtml += '<td class="text-right"><strong>' + t.total + '</strong></td></tr>';
     });
     summaryBody.innerHTML = bHtml;
@@ -977,10 +1302,10 @@
 
   function computeExportStandings() {
     var map = {};
-    var bs = bonusSettings(config);
+    var exs = extrasSettings(config), byTeam = scoresByTeam(allScores);
     teams.forEach(function (t) {
-      var bp = bonusPoints(t, bs);
-      map[t.id] = { id: t.id, name: t.name, players: t.player_count || 1, shots: bp, rounds: {}, total: bp };
+      var br = teamExtraBreakdown(t, byTeam[t.id] || [], exs);
+      map[t.id] = { id: t.id, name: t.name, players: t.player_count || 1, extra: br.total, rounds: {}, total: br.total };
     });
     allScores.forEach(function (s) {
       if (!map[s.team_id]) return;
@@ -1048,7 +1373,7 @@
 
     var header = ['Rank', 'Team'];
     rounds.forEach(function (r) { header.push('R' + r); });
-    header.push(bonusSettings(config).label);
+    header.push('Extra');
     header.push('Total');
 
     var rows = [header];
@@ -1068,7 +1393,7 @@
           }
         }
       });
-      row.push(t.shots);
+      row.push(t.extra);
       row.push(t.total);
       return rows.push(row);
     });
@@ -1093,21 +1418,35 @@
   // formulas ({v, f} cells); non-xlsx formats flatten them to plain values.
   function buildStateData() {
     var tipovacka = config.has_tipovacka || [];
+    var ex = extrasSettings(config);
+    var byTeam = scoresByTeam(allScores);
     var scoreMap = {};
     allScores.forEach(function (s) {
       scoreMap[s.team_id + ':' + s.round_number] = s;
     });
 
-    var bs = bonusSettings(config);
-    var header = ['Team', 'Players', bs.label];
-    var pointCols = [];
+    // Columns: Team, Players, extras (drinking, ticket, party, bet), then per round
+    // R# [Tip] [2x], then Total, Rank, sort key. Everything between Players and Total is summed.
+    var header = ['Team', 'Players'];
+    var fillCols = [], greenCols = [];
+    var col = {};
+    function addCol(h, green) { if (green) greenCols.push(header.length); header.push(h); }
+    if (ex.drinking.enabled) { col.drinking = header.length; addCol(ex.drinking.label, true); }
+    if (ex.ticket.enabled)   { col.ticket = header.length;   addCol(ex.ticket.label, true); }
+    if (ex.party.enabled)    { col.party = header.length;    addCol(ex.party.label, true); }
+    if (ex.bet.enabled) {
+      col.betInfo = header.length; addCol('Bet (round / guess)', false);
+      col.bet = header.length;     addCol('Bet pts', true);
+    }
+    col.adjust = header.length;     addCol('Adjustment', true);
+    col.adjustNote = header.length; addCol('Adjustment note', false);
+    var roundCol = {};
     for (var r = 1; r <= config.rounds; r++) {
-      pointCols.push(header.length);
+      roundCol[r] = { std: header.length };
+      fillCols.push(header.length);
       header.push('R' + r);
-      if (tipovacka[r - 1] === true) {
-        pointCols.push(header.length);
-        header.push('R' + r + ' Tip');
-      }
+      if (tipovacka[r - 1] === true) { roundCol[r].tip = header.length; addCol('R' + r + ' Tip', true); }
+      if (ex.double.enabled && ex.double.rounds[r] !== undefined) { roundCol[r].dbl = header.length; addCol('R' + r + ' ' + ex.double.mult + 'x bonus' + (ex.double.rounds[r].length ? ' (Q' + ex.double.rounds[r].join('+') + ')' : ''), true); }
     }
     var totalCol = header.length;
     var rankCol = totalCol + 1;
@@ -1125,22 +1464,40 @@
     var totals = [];
     teams.forEach(function (t) {
       var players = t.player_count || 1;
-      var shots = bonusPoints(t, bs); // points earned, so Total = bonus + round points
-      var row = [t.name, players, shots];
-      var total = shots;
+      var row = [];
+      for (var c = 0; c < header.length; c++) row.push('');
+      row[0] = t.name;
+      row[1] = players;
+
+      var br = teamExtraBreakdown(t, byTeam[t.id] || [], ex);
+      if (col.drinking !== undefined) row[col.drinking] = br.drinking;
+      if (col.ticket !== undefined)   row[col.ticket] = br.ticket;
+      if (col.party !== undefined)    row[col.party] = br.party;
+      if (col.bet !== undefined) {
+        var te = (t.extras && typeof t.extras === 'object') ? t.extras : {};
+        var eff = ex.bet.round || (te.bet && te.bet.round);
+        row[col.betInfo] = (te.bet && eff && te.bet.guess !== undefined) ? eff + ' / ' + te.bet.guess : '';
+        row[col.bet] = br.bet;
+      }
+
+      var tex = (t.extras && typeof t.extras === 'object') ? t.extras : {};
+      row[col.adjust] = br.adjust;
+      row[col.adjustNote] = tex.adjust_note || '';
+
+      var total = br.total;   // extras incl. the multiplied-question bonus; round points are added below
       for (var rn = 1; rn <= config.rounds; rn++) {
         var s = scoreMap[t.id + ':' + rn];
-        row.push(s ? s.standard_points : '');
-        if (s) total += s.standard_points;
-        if (tipovacka[rn - 1] === true) {
-          row.push(s ? s.tipovacka_point : '');
-          if (s) total += s.tipovacka_point;
+        if (!s) continue;
+        row[roundCol[rn].std] = s.standard_points;
+        total += s.standard_points;
+        if (roundCol[rn].tip !== undefined) {
+          row[roundCol[rn].tip] = s.tipovacka_point;
+          total += s.tipovacka_point;
         }
+        if (roundCol[rn].dbl !== undefined) row[roundCol[rn].dbl] = (ex.double.mult - 1) * (Number(s.double_points) || 0);
       }
       totals.push(total);
-      row.push(total); // placeholders, replaced below
-      row.push('');
-      row.push('');
+      row[totalCol] = total; // replaced by a formula cell below
       rows.push(row);
     });
 
@@ -1154,8 +1511,7 @@
         if (totals[j] > totals[i] || (totals[j] === totals[i] && op < players)) rank++;
       });
       var xr = i + 2; // Excel row
-      var firstPt = colLetter(pointCols[0]), lastPt = colLetter(pointCols[pointCols.length - 1]);
-      var totalF = 'C' + xr + '+SUM(' + firstPt + xr + ':' + lastPt + xr + ')';
+      var totalF = 'SUM(C' + xr + ':' + colLetter(totalCol - 1) + xr + ')';
       var tc = colLetter(totalCol);
       var rankF = '1+COUNTIF(' + totalRange + ',">"&' + tc + xr + ')'
         + '+COUNTIFS(' + totalRange + ',' + tc + xr + ',' + playersRange + ',"<"&B' + xr + ')';
@@ -1168,12 +1524,6 @@
     });
 
     // Layout info for styling and for the Standings formulas
-    var fillCols = [];
-    var greenCols = [];
-    header.forEach(function (h, i) {
-      if (/^R\d+$/.test(h)) fillCols.push(i);
-      if (i === 2 || /^R\d+ Tip$/.test(h)) greenCols.push(i);
-    });
     var meta = {
       n: n,
       fillCols: fillCols,
@@ -1225,14 +1575,11 @@
       ['Questions per round', config.questions_per_round],
       ['Tipovacka rounds', tipRounds.join(', ') || 'none'],
       ['Published rounds', config.published_rounds || 0],
-      ['Bonus name', bonusSettings(config).label],
-      ['Bonus mode', bonusSettings(config).mode === 'count'
-        ? 'count: 1 point per order, max ' + bonusSettings(config).max
-        : 'yes/no: ' + bonusSettings(config).yesPoints + ' point(s)'],
+    ].concat(extrasSummaryLines(extrasSettings(config)).map(function (l) { return ['Extra points', l]; })).concat([
       ['Teams', teams.length],
       [],
-      ['Note', 'Fill points into the R columns of the Quiz State sheet. The bonus column holds the points earned from the bonus. Total and Rank are formulas (Excel only). Ties are broken by fewer players.']
-    ];
+      ['Note', 'Fill points into the R columns of the Quiz State sheet. The extra-points columns (drinking, tickets, Bet pts, Adjustment) and the R# bonus columns of the multiplied question hold points as plain numbers; Total sums them with the round points. Total and Rank are formulas (Excel only). Ties are broken by fewer players.']
+    ]);
   }
 
   function flattenCells(data) {
@@ -1475,15 +1822,17 @@
     var n = teams.length;
     var tipovacka = config.has_tipovacka || [];
     var published = config.published_rounds || 0;
+    var exc = extrasSettings(config);
 
     // Per round: which teams have a score, who has the tipovacka point
     var info = [];
-    for (var r = 1; r <= config.rounds; r++) info[r] = { scored: {}, tip: [] };
+    for (var r = 1; r <= config.rounds; r++) info[r] = { scored: {}, tip: [], dbl: 0 };
     allScores.forEach(function (s) {
       var ri = info[s.round_number];
       if (!ri) return;
       ri.scored[s.team_id] = true;
       if (s.tipovacka_point === 1) ri.tip.push(s.team_id);
+      ri.dbl += Number(s.double_points) || 0;
     });
     function teamName(id) { var t = teams.find(function (x) { return x.id === id; }); return t ? t.name : '?'; }
 
@@ -1516,6 +1865,11 @@
 
       // 2. Scored but not published
       if (complete && rn > published) unpublished.push(rn);
+
+      // 2x round with no points entered for the doubled question
+      if (complete && exc.double.enabled && exc.double.rounds[rn] !== undefined && ri.dbl === 0) {
+        items.push({ level: 'note', round: rn, text: 'Round ' + rn + ' is a ' + exc.double.mult + 'x round, but no team has points entered for the ' + exc.double.mult + 'x question.' });
+      }
 
       // 4. Tipovacka sanity (only once the round is fully scored)
       if (complete && tipovacka[rn - 1] === true) {
@@ -1798,13 +2152,15 @@
     var oldName = {};
     (snap.teams || []).forEach(function (t) { oldName[t.id] = t.name; });
     var scoreRows = (snap.scores || []).map(function (s) {
-      return {
+      var row = {
         team_id: byName[oldName[s.team_id]],
         round_number: s.round_number,
         standard_points: s.standard_points,
         tipovacka_point: s.tipovacka_point,
         updated_at: s.updated_at
       };
+      if (s.double_points !== undefined) row.double_points = s.double_points;
+      return row;
     }).filter(function (s) { return s.team_id; });
     if (scoreRows.length) {
       var { error: sErr } = await db.from('scores').insert(scoreRows);
