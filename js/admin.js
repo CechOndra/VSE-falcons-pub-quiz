@@ -103,6 +103,7 @@
   const archiveNewBtn   = document.getElementById('archiveNewBtn');
   const archiveList     = document.getElementById('archiveList');
   const exportBtn       = document.getElementById('exportBtn');
+  const podiumBtn       = document.getElementById('podiumBtn');
   const exportMsg       = document.getElementById('exportMsg');
 
   // ---- Helpers ----
@@ -2011,6 +2012,140 @@
     }
 
     showMsg(exportMsg, 'Export complete.', 'success');
+  });
+
+  // ================================================================
+  //  PODIUM PICTURE (16:9 PNG of the published top places)
+  // ================================================================
+
+  function podiumGroups() {
+    var pub = config.published_rounds || 0;
+    var exs = extrasSettings(config);
+    var rows = allScores.filter(function (s) { return s.round_number <= pub; });
+    var byTeam = scoresByTeam(rows);
+    var list = teams.map(function (t) {
+      var br = teamExtraBreakdown(t, byTeam[t.id] || [], exs);
+      var total = br.total;
+      (byTeam[t.id] || []).forEach(function (s) { total += s.standard_points + s.tipovacka_point; });
+      return { id: t.id, name: t.name, players: t.player_count || 1, extra: br.total, total: total };
+    });
+    list.sort(function (a, b) {
+      if (a.total !== b.total) return b.total - a.total;
+      if (a.players !== b.players) return a.players - b.players;
+      return a.extra - b.extra;
+    });
+    // Teams that are fully tied share one block
+    var groups = [];
+    list.forEach(function (t, i) {
+      var prev = list[i - 1];
+      if (prev && prev.total === t.total && prev.players === t.players && prev.extra === t.extra) {
+        groups[groups.length - 1].teams.push(t.name);
+      } else {
+        groups.push({ rank: i + 1, total: t.total, teams: [t.name] });
+      }
+    });
+    groups.forEach(function (g) { g.tied = g.teams.length > 1; });
+    return groups.slice(0, 5);
+  }
+
+  function wrapName(ctx, text, maxW) {
+    var words = text.split(/\s+/), lines = [], cur = '';
+    words.forEach(function (w) {
+      var test = cur ? cur + ' ' + w : w;
+      if (cur && ctx.measureText(test).width > maxW) { lines.push(cur); cur = w; } else { cur = test; }
+    });
+    if (cur) lines.push(cur);
+    return lines;
+  }
+
+  function drawPodium(groups, pub) {
+    var W = 1920, H = 1080;
+    var cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    var ctx = cv.getContext('2d');
+    var font = '"Segoe UI", "Helvetica Neue", Arial, sans-serif';
+
+    var bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#0b1a35'); bg.addColorStop(1, '#13264d');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = '#ffffff'; ctx.font = '700 64px ' + font;
+    ctx.fillText('VŠE Falcons Pub Quiz', W / 2, 95);
+    ctx.fillStyle = '#4da3ff'; ctx.font = '600 40px ' + font;
+    ctx.fillText(pub >= config.rounds ? 'Final standings' : 'Standings after round ' + pub + ' of ' + config.rounds, W / 2, 155);
+
+    // block slots in order of place: 1st centre, 2nd right, 3rd left, 4th far right, 5th far left
+    var bw = 340, gap = 6, floorY = 1020;
+    var slots = [
+      { x: W / 2,                h: 470, c: ['#ffe27a', '#d4a514'] },
+      { x: W / 2 + bw + gap,     h: 340, c: ['#e6e9ee', '#9aa3b2'] },
+      { x: W / 2 - bw - gap,     h: 270, c: ['#e0a46a', '#a8662c'] },
+      { x: W / 2 + 2 * (bw + gap), h: 170, c: ['#6f86a8', '#3f5578'] },
+      { x: W / 2 - 2 * (bw + gap), h: 120, c: ['#6f86a8', '#3f5578'] }
+    ];
+
+    groups.forEach(function (g, i) {
+      var s = slots[i], top = floorY - s.h, left = s.x - bw / 2;
+      var gr = ctx.createLinearGradient(0, top, 0, floorY);
+      gr.addColorStop(0, s.c[0]); gr.addColorStop(1, s.c[1]);
+      ctx.fillStyle = gr; ctx.fillRect(left, top, bw, s.h);
+
+      // rank + points on the block
+      ctx.fillStyle = '#0b1a35'; ctx.textAlign = 'center';
+      var big = s.h >= 250 ? 110 : (s.h >= 150 ? 80 : 60);
+      ctx.font = '800 ' + big + 'px ' + font;
+      ctx.fillText(g.tied ? 'T-' + g.rank : '' + g.rank, s.x, top + big + 8);
+      ctx.font = '600 ' + (big >= 80 ? 42 : 34) + 'px ' + font;
+      if (s.h >= 130) ctx.fillText(g.total + ' pts', s.x, top + big + (big >= 80 ? 60 : 50));
+      else ctx.fillText(g.total + ' pts', s.x, floorY - 12);
+
+      // team names stacked above the block; shrink to fit, trim if there are too many
+      var avail = top - 190, maxW = bw - 12, names = g.teams.slice(), extra = 0;
+      var fs = 40, lines;
+      for (;;) {
+        ctx.font = '700 ' + fs + 'px ' + font;
+        lines = names.map(function (n) { return wrapName(ctx, n, maxW); });
+        var h = lines.reduce(function (a, l) { return a + l.length * fs * 1.15 + 10; }, 0) + (extra ? fs : 0);
+        var tooWide = lines.some(function (l) { return l.length > 3 || l.some(function (x) { return ctx.measureText(x).width > maxW; }); });
+        if (h <= avail && !tooWide) break;
+        if (fs > 22) { fs -= 2; continue; }
+        if (names.length > 1) { names.pop(); extra = g.teams.length - names.length; continue; }
+        break;   // a single very long name: draw as is
+      }
+      var y = top - 18;
+      if (extra) { ctx.fillStyle = '#9db4d8'; ctx.font = '600 ' + fs + 'px ' + font; ctx.fillText('+ ' + extra + ' more', s.x, y); y -= fs * 1.15 + 10; }
+      ctx.fillStyle = '#ffffff'; ctx.font = '700 ' + fs + 'px ' + font;
+      for (var k = names.length - 1; k >= 0; k--) {
+        var ls = wrapName(ctx, names[k], maxW);
+        for (var j = ls.length - 1; j >= 0; j--) { ctx.fillText(ls[j], s.x, y); y -= fs * 1.15; }
+        y -= 10;
+      }
+
+      // potato next to 4th place
+      if (i === 3) { ctx.font = '80px "Segoe UI Emoji", "Apple Color Emoji", sans-serif'; ctx.fillText(String.fromCodePoint(0x1F954), left + bw - 60, top + 95); }
+    });
+    return cv;
+  }
+
+  podiumBtn.addEventListener('click', function () {
+    var pub = config ? (config.published_rounds || 0) : 0;
+    if (!config || teams.length === 0) { showMsg(exportMsg, 'No quiz set up yet.', 'error'); return; }
+    if (pub === 0) { showMsg(exportMsg, 'Publish a round first. The picture shows the published standings.', 'error'); return; }
+    try {
+      var groups = podiumGroups();
+      var cv = drawPodium(groups, pub);
+      var today = new Date().toISOString().slice(0, 10);
+      var name = exportName.value.trim().replace(/[\/:*?"<>|]+/g, '').replace(/\s+/g, '-') || 'pub-quiz';
+      var fname = name + '_podium_' + (pub >= config.rounds ? 'FINAL' : 'round-' + pub + '-of-' + config.rounds) + '_' + today + '.png';
+      cv.toBlob(function (blob) {
+        if (!blob) { showMsg(exportMsg, 'Could not create the picture.', 'error'); return; }
+        triggerDownload(blob, fname);
+        showMsg(exportMsg, 'Podium picture downloaded (shows the published standings after round ' + pub + ').', 'success');
+      }, 'image/png');
+    } catch (e) {
+      showMsg(exportMsg, 'Podium picture failed: ' + e.message, 'error');
+    }
   });
 
   // Build the sheet list for an export from the current config/teams/allScores
