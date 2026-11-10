@@ -90,6 +90,8 @@
   const exportBreakdown = document.getElementById('exportBreakdown');
   const exportState     = document.getElementById('exportState');
   const exportName      = document.getElementById('exportName');
+  const checksSection   = document.getElementById('checksSection');
+  const checksList      = document.getElementById('checksList');
   const archiveSection  = document.getElementById('archiveSection');
   const archiveMsg      = document.getElementById('archiveMsg');
   const archiveSaveBox  = document.getElementById('archiveSaveBox');
@@ -165,6 +167,7 @@
     var { data } = await db.from('quiz_config').select('*').eq('id', 1).maybeSingle();
     config = data;
     archiveSaveBox.classList.toggle('hidden', !config);
+    if (!config) checksSection.classList.add('hidden');
 
     if (!config) {
       setupSection.classList.remove('hidden');
@@ -648,6 +651,7 @@
     publishStatus.textContent = 'Published: Round ' + pub + ' of ' + config.rounds;
     publishBtn.disabled = pub >= config.rounds;
     unpublishBtn.disabled = pub <= 0;
+    renderChecks();
   }
 
   publishBtn.addEventListener('click', async function () {
@@ -901,6 +905,7 @@
     var { data } = await db.from('scores').select('*');
     allScores = data || [];
     renderSummary();
+    renderChecks();
   }
 
   function renderSummary() {
@@ -1453,6 +1458,107 @@
     }
     return sheets;
   }
+
+  // ================================================================
+  //  CHECKS — reminders about things that look unfinished
+  // ================================================================
+
+  function nameList(names) {
+    var shown = names.slice(0, 6).map(escHtml).join(', ');
+    return names.length > 6 ? shown + ' +' + (names.length - 6) + ' more' : shown;
+  }
+
+  function computeChecks() {
+    var items = [];
+    if (!config || teams.length === 0) return items;
+
+    var n = teams.length;
+    var tipovacka = config.has_tipovacka || [];
+    var published = config.published_rounds || 0;
+
+    // Per round: which teams have a score, who has the tipovacka point
+    var info = [];
+    for (var r = 1; r <= config.rounds; r++) info[r] = { scored: {}, tip: [] };
+    allScores.forEach(function (s) {
+      var ri = info[s.round_number];
+      if (!ri) return;
+      ri.scored[s.team_id] = true;
+      if (s.tipovacka_point === 1) ri.tip.push(s.team_id);
+    });
+    function teamName(id) { var t = teams.find(function (x) { return x.id === id; }); return t ? t.name : '?'; }
+
+    var anyLater = {};           // does any later round have scores?
+    var seen = false;
+    for (var k = config.rounds; k >= 1; k--) {
+      anyLater[k] = seen;
+      if (Object.keys(info[k].scored).length > 0) seen = true;
+    }
+
+    var unpublished = [];
+    for (var rn = 1; rn <= config.rounds; rn++) {
+      var ri = info[rn];
+      var count = Object.keys(ri.scored).length;
+      var missing = teams.filter(function (t) { return !ri.scored[t.id]; }).map(function (t) { return t.name; });
+      var complete = count === n;
+
+      if (!complete && rn <= published) {
+        // Published while incomplete: players already see this round
+        var whoTxt = count === 0 ? 'no team has points' : missing.length + ' of ' + n + ' teams ' + (missing.length === 1 ? 'has' : 'have') + ' no points (' + nameList(missing) + ')';
+        items.push({ level: 'warn', round: rn,
+          text: 'Round ' + rn + ' is published but ' + whoTxt + '. Players see incomplete standings.' });
+      } else if (!complete && (count > 0 || anyLater[rn])) {
+        // Missing scores (partly entered, or skipped while later rounds have scores)
+        var txt = count === 0
+          ? 'Round ' + rn + ' has no scores yet, but a later round does.'
+          : 'Round ' + rn + ': ' + missing.length + ' of ' + n + ' team' + (n === 1 ? '' : 's') + ' still missing points (' + nameList(missing) + ').';
+        items.push({ level: 'warn', round: rn, text: txt });
+      }
+
+      // 2. Scored but not published
+      if (complete && rn > published) unpublished.push(rn);
+
+      // 4. Tipovacka sanity (only once the round is fully scored)
+      if (complete && tipovacka[rn - 1] === true) {
+        if (ri.tip.length === 0) {
+          items.push({ level: 'note', round: rn, text: 'Round ' + rn + ' has tipova\u010dka, but no team has the tipova\u010dka point.' });
+        } else if (ri.tip.length > 1) {
+          items.push({ level: 'warn', round: rn,
+            text: 'Round ' + rn + ': ' + ri.tip.length + ' teams have the tipova\u010dka point (' + nameList(ri.tip.map(teamName)) + '). Usually it is only one.' });
+        }
+      }
+    }
+
+    if (unpublished.length > 0) {
+      var label = unpublished.length === 1 ? 'Round ' + unpublished[0] + ' is' : 'Rounds ' + unpublished.join(', ') + ' are';
+      items.push({ level: 'note', round: unpublished[0], text: label + ' fully scored but not published yet.' });
+    }
+    return items;
+  }
+
+  function renderChecks() {
+    if (!config || teams.length === 0) { checksSection.classList.add('hidden'); return; }
+    checksSection.classList.remove('hidden');
+    var items = computeChecks();
+    if (items.length === 0) {
+      checksList.innerHTML = '<div class="check-item check-ok"><span class="check-icon">\u2713</span><span>Nothing open. Everything entered so far looks complete.</span></div>';
+      return;
+    }
+    // Warnings first
+    items.sort(function (a, b) { return (a.level === 'warn' ? 0 : 1) - (b.level === 'warn' ? 0 : 1); });
+    checksList.innerHTML = items.map(function (it) {
+      return '<div class="check-item check-' + it.level + '"><span class="check-icon">' + (it.level === 'warn' ? '\u26A0' : '\u2139') + '</span>'
+        + '<span>' + it.text
+        + ' <button type="button" class="check-open" data-round="' + it.round + '">Open round ' + it.round + '</button></span></div>';
+    }).join('');
+  }
+
+  checksList.addEventListener('click', function (e) {
+    var btn = e.target.closest('.check-open');
+    if (!btn) return;
+    roundSelect.value = btn.getAttribute('data-round');
+    renderScoreTable();
+    scoreSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 
   // ================================================================
   //  QUIZ ARCHIVE (save / view / export / restore past quizzes)

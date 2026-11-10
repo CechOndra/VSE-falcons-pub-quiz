@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin — Pub Quiz Scoreboard</title>
-  <link rel="stylesheet" href="css/style.css?v=20261110a">
+  <link rel="stylesheet" href="css/style.css?v=20261110b">
 </head>
 <body>
 
@@ -81,6 +81,12 @@
         <button class="btn btn-secondary" id="unpublishBtn">Unpublish Last Round</button>
       </div>
       <button class="btn btn-danger" id="resetBtn" style="margin-top:0.75rem;">Reset Quiz</button>
+    </div>
+
+    <!-- Checks: things that look unfinished -->
+    <div id="checksSection" class="card hidden">
+      <h2 style="margin-bottom:0.5rem;">Checks</h2>
+      <div id="checksList"></div>
     </div>
 
     <!-- Score Entry -->
@@ -282,9 +288,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
-  <script src="config.js?v=20261110a"></script>
-  <script src="js/supabase.js?v=20261110a"></script>
-  <script src="js/bonus.js?v=20261110a"></script>
-  <script src="js/admin.js?v=20261110a"></script>
+  <script src="config.js?v=20261110b"></script>
+  <script src="js/supabase.js?v=20261110b"></script>
+  <script src="js/bonus.js?v=20261110b"></script>
+  <script src="js/admin.js?v=20261110b"></script>
 </body>
 </html>
