@@ -222,6 +222,8 @@ tbody tr.rank-3 td:last-child  { border-right: 3px solid #cd7f32; }
 
 .text-right  { text-align: right; }
 .text-center { text-align: center; }
+/* Standings detail columns (Players, Extra points) shrink to their content so Team keeps the space */
+#view-standings th:nth-child(n+4), #view-standings td:nth-child(n+4) { width: 1%; white-space: nowrap; padding-left: 1.25rem; padding-right: 1.25rem; }
 /* Tipovacka bonus point: always on its own line under the round score */
 /* Admin: helper accounts see only the Extra Points card */
 body.helper-mode #setupSection, body.helper-mode #configBanner, body.helper-mode #checksSection,

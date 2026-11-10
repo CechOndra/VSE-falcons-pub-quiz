@@ -44,7 +44,7 @@
   var togglePlayersBtn = document.getElementById('togglePlayersBtn');
   togglePlayersBtn.addEventListener('click', function () {
     showPlayers = !showPlayers;
-    togglePlayersBtn.textContent = showPlayers ? 'Hide Players' : 'Show Players';
+    togglePlayersBtn.textContent = showPlayers ? 'Hide Details' : 'Show Details';
     render();
   });
 
@@ -224,7 +224,7 @@
     var ranks = computeRanks(standings);
 
     var headHtml = '<tr><th>#</th><th>Team</th><th class="text-right">Points</th>';
-    if (showPlayers) headHtml += '<th class="text-center">Players</th>';
+    if (showPlayers) headHtml += '<th class="text-center">Players</th><th class="text-center">Extra points</th>';
     headHtml += '</tr>';
     standingsHead.innerHTML = headHtml;
 
@@ -237,7 +237,7 @@
         + '<td>' + r.label + '</td>'
         + '<td>' + escHtml(team.name) + '</td>'
         + '<td class="text-right">' + team.total + '</td>';
-      if (showPlayers) html += '<td class="text-center">' + team.players + '</td>';
+      if (showPlayers) html += '<td class="text-center">' + team.players + '</td><td class="text-center">' + fmtExtra(team.extra) + '</td>';
       html += '</tr>';
     });
     standingsBody.innerHTML = html;
@@ -336,7 +336,7 @@
 
     var head = '<tr><th>Team</th>';
     cols.forEach(function (c) { head += '<th class="text-center">' + escHtml(c.label) + '</th>'; });
-    head += '<th class="text-center">Extra</th>';
+    head += '<th class="text-center">Extra total</th>';
     if (hasTip) head += '<th class="text-center">Tipova\u010dka</th>';
     extrasHead.innerHTML = head + '</tr>';
 
