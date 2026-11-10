@@ -90,6 +90,14 @@
   const exportBreakdown = document.getElementById('exportBreakdown');
   const exportState     = document.getElementById('exportState');
   const exportName      = document.getElementById('exportName');
+  const archiveSection  = document.getElementById('archiveSection');
+  const archiveMsg      = document.getElementById('archiveMsg');
+  const archiveSaveBox  = document.getElementById('archiveSaveBox');
+  const archiveName     = document.getElementById('archiveName');
+  const archiveIsTest   = document.getElementById('archiveIsTest');
+  const archiveSaveBtn  = document.getElementById('archiveSaveBtn');
+  const archiveNewBtn   = document.getElementById('archiveNewBtn');
+  const archiveList     = document.getElementById('archiveList');
   const exportBtn       = document.getElementById('exportBtn');
   const exportMsg       = document.getElementById('exportMsg');
 
@@ -146,6 +154,7 @@
     dashboard.classList.remove('hidden');
     signOutBtn.classList.remove('hidden');
     await loadConfig();
+    await loadArchive();
   }
 
   // ================================================================
@@ -155,6 +164,7 @@
   async function loadConfig() {
     var { data } = await db.from('quiz_config').select('*').eq('id', 1).maybeSingle();
     config = data;
+    archiveSaveBox.classList.toggle('hidden', !config);
 
     if (!config) {
       setupSection.classList.remove('hidden');
@@ -619,7 +629,7 @@
 
   // ---- Reset ----
   resetBtn.addEventListener('click', async function () {
-    if (!confirm('This will delete ALL quiz data (config, teams, scores). Are you sure?')) return;
+    if (!confirm('This will delete ALL quiz data (config, teams, scores). Tip: use "Save & start new quiz" in Quiz Archive to keep a copy.\n\nAre you sure?')) return;
     if (!confirm('Really? This cannot be undone.')) return;
 
     await db.from('scores').delete().neq('id', '00000000-0000-0000-0000-000000000000');
@@ -1230,15 +1240,22 @@
 
   // e.g. VSE-Falcons-Pub-Quiz_state_round-3-of-5_2026-11-09
   //      pub-quiz_results_FINAL_2026-11-09
-  function buildExportFilename(today) {
-    var name = exportName.value.trim().replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, '-');
+  // Highest round for which every team has a score (0 if none)
+  function lastCompleteRound() {
     var perRound = {};
     allScores.forEach(function (s) { perRound[s.round_number] = (perRound[s.round_number] || 0) + 1; });
     var done = 0;
     Object.keys(perRound).forEach(function (rn) {
       if (perRound[rn] >= teams.length && +rn > done) done = +rn;
     });
-    var parts = [name || 'pub-quiz', exportState.checked ? 'state' : 'results'];
+    return done;
+  }
+
+  function buildExportFilename(today, nameOverride, forceState) {
+    var rawName = nameOverride !== undefined ? nameOverride : exportName.value;
+    var name = rawName.trim().replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, '-');
+    var done = lastCompleteRound();
+    var parts = [name || 'pub-quiz', (forceState || exportState.checked) ? 'state' : 'results'];
     if (done >= config.rounds) parts.push('FINAL');
     else if (done > 0) parts.push('round-' + done + '-of-' + config.rounds);
     else parts.push('not-started');
@@ -1394,23 +1411,9 @@
     }
 
     var fmt = exportFormat.value;
-    var sheets = [];
-    var stateMeta = null;
-    if (exportState.checked) {
-      var state = buildStateData();
-      var stateData = fmt === 'xlsx' ? state.rows : flattenCells(state.rows);
-      stateMeta = state.meta;
-      sheets.push({ name: 'Quiz State', data: stateData, fillCols: state.meta.fillCols, greyCols: state.meta.greyCols, greenCols: state.meta.greenCols, rankCol: state.meta.rankCol, totalCol: state.meta.totalCol });
-      sheets.push({ name: 'Quiz Config', data: buildConfigData() });
-    }
-    if (exportStandings.checked) {
-      var standingsData = buildStandingsData();
-      if (fmt === 'xlsx' && stateMeta) standingsData = buildLiveStandings(stateMeta, standingsData);
-      sheets.push({ name: 'Standings', data: standingsData });
-    }
-    if (exportBreakdown.checked) {
-      sheets.push({ name: 'Round Breakdown', data: buildBreakdownData() });
-    }
+    var sheets = assembleSheets(fmt, {
+      state: exportState.checked, standings: exportStandings.checked, breakdown: exportBreakdown.checked
+    });
 
     var today = new Date().toISOString().slice(0, 10);
     var filename = buildExportFilename(today);
@@ -1428,6 +1431,284 @@
 
     showMsg(exportMsg, 'Export complete.', 'success');
   });
+
+  // Build the sheet list for an export from the current config/teams/allScores
+  function assembleSheets(fmt, want) {
+    var sheets = [];
+    var stateMeta = null;
+    if (want.state) {
+      var state = buildStateData();
+      var stateData = fmt === 'xlsx' ? state.rows : flattenCells(state.rows);
+      stateMeta = state.meta;
+      sheets.push({ name: 'Quiz State', data: stateData, fillCols: state.meta.fillCols, greyCols: state.meta.greyCols, greenCols: state.meta.greenCols, rankCol: state.meta.rankCol, totalCol: state.meta.totalCol });
+      sheets.push({ name: 'Quiz Config', data: buildConfigData() });
+    }
+    if (want.standings) {
+      var standingsData = buildStandingsData();
+      if (fmt === 'xlsx' && stateMeta) standingsData = buildLiveStandings(stateMeta, standingsData);
+      sheets.push({ name: 'Standings', data: standingsData });
+    }
+    if (want.breakdown) {
+      sheets.push({ name: 'Round Breakdown', data: buildBreakdownData() });
+    }
+    return sheets;
+  }
+
+  // ================================================================
+  //  QUIZ ARCHIVE (save / view / export / restore past quizzes)
+  // ================================================================
+
+  // Run fn with config/teams/allScores temporarily swapped to a snapshot, so the
+  // export builders can be reused unchanged on an archived quiz.
+  function withSnapshot(snap, fn) {
+    var saved = { config: config, teams: teams, scores: allScores };
+    config = snap.config; teams = snap.teams || []; allScores = snap.scores || [];
+    try { return fn(); } finally { config = saved.config; teams = saved.teams; allScores = saved.scores; }
+  }
+
+  function summarize(snap) {
+    return withSnapshot(snap, function () {
+      var last = lastCompleteRound();
+      return {
+        teams: teams.length,
+        rounds: config.rounds,
+        last_complete_round: last,
+        final: last >= config.rounds,
+        top: computeExportStandings().slice(0, 3).map(function (t) { return { name: t.name, points: t.total }; })
+      };
+    });
+  }
+
+  // Read the live quiz fresh from the database (null if there is none)
+  async function captureLive() {
+    var c = await db.from('quiz_config').select('*').eq('id', 1).maybeSingle();
+    if (c.error) throw c.error;
+    if (!c.data) return null;
+    var t = await db.from('teams').select('*').order('name');
+    if (t.error) throw t.error;
+    var s = await db.from('scores').select('*');
+    if (s.error) throw s.error;
+    return { config: c.data, teams: t.data || [], scores: s.data || [] };
+  }
+
+  async function saveArchive(snap, name, isTest) {
+    var { error } = await db.from('quiz_archive').insert({
+      name: name, is_test: !!isTest, summary: summarize(snap), snapshot: snap
+    });
+    return error;
+  }
+
+  async function clearLive() {
+    await db.from('scores').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await db.from('teams').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    await db.from('quiz_config').delete().eq('id', 1);
+    config = null; teams = []; allScores = [];
+  }
+
+  function defaultArchiveName() {
+    var base = '';
+    try { base = localStorage.getItem('pubQuizExportName') || ''; } catch (e) {}
+    return (base || 'Pub quiz') + ' ' + new Date().toISOString().slice(0, 10);
+  }
+
+  async function loadArchive() {
+    archiveSection.classList.remove('hidden');
+    var { data, error } = await db.from('quiz_archive')
+      .select('id,name,is_test,archived_at,summary').order('archived_at', { ascending: false });
+    if (error) {
+      archiveList.innerHTML = '';
+      archiveSaveBox.classList.add('hidden');
+      showMsg(archiveMsg, 'Archive not available: ' + error.message
+        + ' (Run migrations/2026-11-quiz-archive.sql in Supabase.)', 'error');
+      return;
+    }
+    if (!archiveName.value) archiveName.value = defaultArchiveName();
+    renderArchiveList(data || []);
+  }
+
+  function renderArchiveList(rows) {
+    if (rows.length === 0) {
+      archiveList.innerHTML = '<p style="font-size:0.85rem;opacity:0.7;">No saved quizzes yet.</p>';
+      return;
+    }
+    var html = '<div class="table-wrap"><table><thead><tr><th>Quiz</th><th>Saved</th><th></th></tr></thead><tbody>';
+    rows.forEach(function (r) {
+      var s = r.summary || {};
+      var progress = s.final ? 'FINAL' : (s.last_complete_round > 0
+        ? 'round ' + s.last_complete_round + ' of ' + s.rounds : 'not started');
+      var top = (s.top || []).map(function (t, i) { return (i + 1) + '. ' + escHtml(t.name) + ' (' + t.points + ')'; }).join('  ');
+      html += '<tr data-archive-id="' + r.id + '">'
+        + '<td><strong>' + escHtml(r.name) + '</strong>'
+        + (r.is_test ? ' <span style="font-size:0.7rem;border:1px solid var(--accent);color:var(--accent);border-radius:3px;padding:0 0.3rem;">TEST</span>' : '')
+        + '<div style="font-size:0.75rem;opacity:0.7;">' + (s.teams || 0) + ' teams \u00b7 ' + progress + '</div>'
+        + (top ? '<div style="font-size:0.75rem;opacity:0.7;">' + top + '</div>' : '')
+        + '</td>'
+        + '<td style="font-size:0.8rem;white-space:nowrap;">' + escHtml(new Date(r.archived_at).toLocaleString()) + '</td>'
+        + '<td style="white-space:nowrap;">'
+        + '<button class="btn btn-secondary archive-act" data-act="view">View</button> '
+        + '<button class="btn btn-secondary archive-act" data-act="excel">Excel</button> '
+        + '<button class="btn btn-secondary archive-act" data-act="restore">Restore</button> '
+        + '<button class="btn btn-danger archive-act" data-act="delete">Delete</button>'
+        + '</td></tr>'
+        + '<tr class="archive-detail hidden" data-detail-for="' + r.id + '"><td colspan="3"></td></tr>';
+    });
+    html += '</tbody></table></div>';
+    archiveList.innerHTML = html;
+  }
+
+  function simpleTableHtml(rows) {
+    var h = '<div class="table-wrap"><table><thead><tr>'
+      + rows[0].map(function (c) { return '<th>' + escHtml('' + c) + '</th>'; }).join('') + '</tr></thead><tbody>';
+    rows.slice(1).forEach(function (r) {
+      h += '<tr>' + r.map(function (c) { return '<td>' + escHtml('' + c) + '</td>'; }).join('') + '</tr>';
+    });
+    return h + '</tbody></table></div>';
+  }
+
+  async function fetchSnapshot(id) {
+    var { data, error } = await db.from('quiz_archive').select('name,snapshot').eq('id', id).maybeSingle();
+    if (error || !data) throw error || new Error('Saved quiz not found.');
+    return data;
+  }
+
+  archiveSaveBtn.addEventListener('click', async function () {
+    var name = archiveName.value.trim();
+    if (!name) { showMsg(archiveMsg, 'Enter a name.', 'error'); return; }
+    archiveSaveBtn.disabled = true;
+    try {
+      var snap = await captureLive();
+      if (!snap) { showMsg(archiveMsg, 'There is no live quiz to save.', 'error'); return; }
+      var err = await saveArchive(snap, name, archiveIsTest.checked);
+      if (err) { showMsg(archiveMsg, err.message, 'error'); return; }
+      showMsg(archiveMsg, 'Saved "' + name + '". The live quiz is unchanged.', 'success');
+      await loadArchive();
+    } catch (e) {
+      showMsg(archiveMsg, e.message, 'error');
+    } finally {
+      archiveSaveBtn.disabled = false;
+    }
+  });
+
+  archiveNewBtn.addEventListener('click', async function () {
+    var name = archiveName.value.trim();
+    if (!name) { showMsg(archiveMsg, 'Enter a name.', 'error'); return; }
+    if (!confirm('Save "' + name + '" to the archive and then CLEAR the live quiz (setup, teams and scores) '
+        + 'so you can set up a new one?\n\nYou can restore it from the archive later.')) return;
+    archiveNewBtn.disabled = true;
+    try {
+      var snap = await captureLive();
+      if (!snap) { showMsg(archiveMsg, 'There is no live quiz to save.', 'error'); return; }
+      var err = await saveArchive(snap, name, archiveIsTest.checked);
+      if (err) { showMsg(archiveMsg, 'Not cleared, saving failed: ' + err.message, 'error'); return; }
+      await clearLive();
+      archiveName.value = '';
+      archiveIsTest.checked = false;
+      await loadConfig();
+      await loadArchive();
+      showMsg(archiveMsg, 'Saved "' + name + '" and cleared the live quiz. Set up the new quiz above.', 'success');
+    } catch (e) {
+      showMsg(archiveMsg, e.message, 'error');
+    } finally {
+      archiveNewBtn.disabled = false;
+    }
+  });
+
+  archiveList.addEventListener('click', async function (e) {
+    var btn = e.target.closest('.archive-act');
+    if (!btn) return;
+    var tr = btn.closest('tr');
+    var id = tr.getAttribute('data-archive-id');
+    var act = btn.getAttribute('data-act');
+    var label = tr.querySelector('strong').textContent;
+    btn.disabled = true;
+    try {
+      if (act === 'view') {
+        var detail = archiveList.querySelector('tr[data-detail-for="' + id + '"]');
+        if (!detail.classList.contains('hidden')) { detail.classList.add('hidden'); return; }
+        var row = await fetchSnapshot(id);
+        detail.firstChild.innerHTML = withSnapshot(row.snapshot, function () {
+          return '<h4 style="margin:0.5rem 0;">Standings</h4>' + simpleTableHtml(buildStandingsData())
+            + (allScores.length ? '<h4 style="margin:0.75rem 0 0.5rem;">Round Breakdown</h4>' + simpleTableHtml(buildBreakdownData()) : '');
+        });
+        detail.classList.remove('hidden');
+      } else if (act === 'excel') {
+        var r2 = await fetchSnapshot(id);
+        var today = new Date().toISOString().slice(0, 10);
+        var sheets = withSnapshot(r2.snapshot, function () {
+          return assembleSheets('xlsx', { state: true, standings: true, breakdown: allScores.length > 0 });
+        });
+        var fname = withSnapshot(r2.snapshot, function () { return buildExportFilename(today, r2.name, true); });
+        await exportExcel(sheets, fname + '.xlsx');
+      } else if (act === 'restore') {
+        await restoreArchive(id, label);
+      } else if (act === 'delete') {
+        if (!confirm('Permanently delete the saved quiz "' + label + '"? This cannot be undone.')) return;
+        var { error } = await db.from('quiz_archive').delete().eq('id', id);
+        if (error) { showMsg(archiveMsg, error.message, 'error'); return; }
+        showMsg(archiveMsg, 'Deleted "' + label + '".', 'success');
+        await loadArchive();
+      }
+    } catch (err) {
+      showMsg(archiveMsg, err.message || String(err), 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  async function restoreArchive(id, label) {
+    var live = await captureLive();
+    var msg = 'Restore "' + label + '" as the live quiz (players will see it on the scoreboard)?\n\n';
+    msg += live
+      ? 'The current live quiz will first be saved to the archive as "Auto-saved before restoring" and then replaced.'
+      : 'There is no live quiz right now.';
+    if (!confirm(msg)) return;
+
+    var row = await fetchSnapshot(id);
+    var snap = row.snapshot;
+
+    if (live) {
+      var err = await saveArchive(live, 'Auto-saved before restoring "' + label + '" (' + new Date().toISOString().slice(0, 16).replace('T', ' ') + ')', false);
+      if (err) { showMsg(archiveMsg, 'Not restored, auto-save of the current quiz failed: ' + err.message, 'error'); return; }
+    }
+
+    await clearLive();
+
+    var { error: cErr } = await db.from('quiz_config').upsert(snap.config);
+    if (cErr) { showMsg(archiveMsg, 'Restore failed (config): ' + cErr.message, 'error'); await loadConfig(); return; }
+
+    var teamRows = (snap.teams || []).map(function (t) {
+      var copy = Object.assign({}, t);
+      delete copy.id; delete copy.created_at;
+      return copy;
+    });
+    var { data: newTeams, error: tErr } = teamRows.length
+      ? await db.from('teams').insert(teamRows).select()
+      : { data: [], error: null };
+    if (tErr) { showMsg(archiveMsg, 'Restore failed (teams): ' + tErr.message, 'error'); await loadConfig(); return; }
+
+    // Teams got new ids; map old id -> new id through the (unique) team name
+    var byName = {};
+    (newTeams || []).forEach(function (t) { byName[t.name] = t.id; });
+    var oldName = {};
+    (snap.teams || []).forEach(function (t) { oldName[t.id] = t.name; });
+    var scoreRows = (snap.scores || []).map(function (s) {
+      return {
+        team_id: byName[oldName[s.team_id]],
+        round_number: s.round_number,
+        standard_points: s.standard_points,
+        tipovacka_point: s.tipovacka_point,
+        updated_at: s.updated_at
+      };
+    }).filter(function (s) { return s.team_id; });
+    if (scoreRows.length) {
+      var { error: sErr } = await db.from('scores').insert(scoreRows);
+      if (sErr) { showMsg(archiveMsg, 'Restore failed (scores): ' + sErr.message, 'error'); await loadConfig(); return; }
+    }
+
+    await loadConfig();
+    await loadArchive();
+    showMsg(archiveMsg, 'Restored "' + label + '" as the live quiz.' + (live ? ' The previous quiz was saved to the archive.' : ''), 'success');
+  }
 
   // ---- Collapsible sections ----
   document.querySelectorAll('.collapsible-header').forEach(function (header) {

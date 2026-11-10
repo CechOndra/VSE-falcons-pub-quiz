@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin — Pub Quiz Scoreboard</title>
-  <link rel="stylesheet" href="css/style.css?v=20261109b">
+  <link rel="stylesheet" href="css/style.css?v=20261110a">
 </head>
 <body>
 
@@ -249,15 +249,42 @@
         <button class="btn btn-primary" id="exportBtn" style="margin-top:0.5rem;">Export</button>
       </div>
     </div>
+
+    <!-- Quiz Archive -->
+    <div id="archiveSection" class="card collapsible collapsed hidden">
+      <h2 class="collapsible-header">Quiz Archive</h2>
+      <div class="collapsible-body">
+        <p style="font-size:0.8rem;margin-bottom:0.5rem;color:var(--text);opacity:0.7;">
+          Save a quiz to look back at it later (or keep a test run), and restore any saved quiz to continue it.
+        </p>
+        <div id="archiveMsg"></div>
+
+        <div id="archiveSaveBox" class="hidden" style="margin-bottom:1rem;">
+          <label for="archiveName">Name for the saved quiz</label>
+          <input type="text" id="archiveName" maxlength="80" style="margin-bottom:0.5rem;">
+          <div class="toggle-row">
+            <input type="checkbox" id="archiveIsTest">
+            <label for="archiveIsTest" style="display:inline;margin:0;">This is a test / practice quiz</label>
+          </div>
+          <div style="margin-top:0.5rem;display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <button class="btn btn-primary" id="archiveSaveBtn">Save snapshot</button>
+            <button class="btn btn-secondary" id="archiveNewBtn">Save &amp; start new quiz</button>
+          </div>
+        </div>
+
+        <h3 style="font-size:0.95rem;margin:0.5rem 0;">Saved quizzes</h3>
+        <div id="archiveList"></div>
+      </div>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
-  <script src="config.js?v=20261109b"></script>
-  <script src="js/supabase.js?v=20261109b"></script>
-  <script src="js/bonus.js?v=20261109b"></script>
-  <script src="js/admin.js?v=20261109b"></script>
+  <script src="config.js?v=20261110a"></script>
+  <script src="js/supabase.js?v=20261110a"></script>
+  <script src="js/bonus.js?v=20261110a"></script>
+  <script src="js/admin.js?v=20261110a"></script>
 </body>
 </html>

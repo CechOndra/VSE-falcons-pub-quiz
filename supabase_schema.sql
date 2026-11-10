@@ -113,3 +113,19 @@ CREATE POLICY "Admins can delete scores"
   ON scores FOR DELETE
   TO authenticated
   USING (true);
+
+-- 4. Quiz archive (admin only) -------------------------------
+-- Snapshots of past/test quizzes. See migrations/2026-11-quiz-archive.sql
+CREATE TABLE quiz_archive (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        text NOT NULL,
+  is_test     boolean NOT NULL DEFAULT false,
+  archived_at timestamptz NOT NULL DEFAULT now(),
+  summary     jsonb NOT NULL DEFAULT '{}'::jsonb,
+  snapshot    jsonb NOT NULL
+);
+ALTER TABLE quiz_archive ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admins can read quiz_archive"   ON quiz_archive FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Admins can insert quiz_archive" ON quiz_archive FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "Admins can update quiz_archive" ON quiz_archive FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Admins can delete quiz_archive" ON quiz_archive FOR DELETE TO authenticated USING (true);
