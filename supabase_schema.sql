@@ -15,6 +15,7 @@ CREATE TABLE quiz_config (
   bonus_mode       text NOT NULL DEFAULT 'yes_no' CHECK (bonus_mode IN ('yes_no', 'count')),
   bonus_max        int  NOT NULL DEFAULT 3 CHECK (bonus_max BETWEEN 1 AND 20),   -- count mode: max orders
   bonus_yes_points numeric(3,1) NOT NULL DEFAULT 1,     -- yes/no mode: points for a yes
+  extras           jsonb NOT NULL DEFAULT '{}'::jsonb,  -- settings: ticket, party, bet, 2x question
   created_at      timestamptz NOT NULL DEFAULT now(),
 
   -- Only ever one row
@@ -27,6 +28,7 @@ CREATE TABLE teams (
   player_count int NOT NULL DEFAULT 1,
   shots_bonus  int NOT NULL DEFAULT 0 CHECK (shots_bonus >= 0),   -- yes/no: 0|1, count: 0..bonus_max
   mod_note     text,                                              -- notes on changes made after the quiz started
+  extras       jsonb NOT NULL DEFAULT '{}'::jsonb,                -- ticket, party, bet {round, guess}
   created_at   timestamptz NOT NULL DEFAULT now()
 );
 
@@ -36,6 +38,7 @@ CREATE TABLE scores (
   round_number    int NOT NULL,
   standard_points numeric(4,1) NOT NULL DEFAULT 0,
   tipovacka_point int NOT NULL DEFAULT 0 CHECK (tipovacka_point IN (0, 1)),
+  double_points   numeric(3,1) NOT NULL DEFAULT 0 CHECK (double_points >= 0 AND double_points <= 10),  -- points on the 2x question
   updated_at      timestamptz NOT NULL DEFAULT now(),
 
   CONSTRAINT unique_team_round UNIQUE (team_id, round_number)
