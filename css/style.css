@@ -223,6 +223,40 @@ tbody tr.rank-3 td:last-child  { border-right: 3px solid #cd7f32; }
 .text-right  { text-align: right; }
 .text-center { text-align: center; }
 /* Tipovacka bonus point: always on its own line under the round score */
+/* Admin: helper accounts see only the Extra Points card */
+body.helper-mode #setupSection, body.helper-mode #configBanner, body.helper-mode #checksSection,
+body.helper-mode #scoreSection, body.helper-mode #teamsSection, body.helper-mode #summarySection,
+body.helper-mode #exportSection, body.helper-mode #archiveSection,
+body.helper-mode #bonusEditBtn, body.helper-mode #bonusSettingsForm { display: none !important; }
+
+/* +/- buttons next to a count input */
+.stepper { display: inline-flex; align-items: center; gap: 0.25rem; }
+.step { width: 2.2rem; height: 2.2rem; font-size: 1.2rem; line-height: 1; border-radius: 6px;
+        border: 1px solid var(--border); background: var(--navy); color: var(--white); cursor: pointer; }
+.stepper input { width: 3.2rem; text-align: center; }
+
+/* 2x points entry */
+.dbl-round { margin-bottom: 0.75rem; }
+.dbl-row { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem;
+           padding: 0.3rem 0; border-bottom: 1px solid var(--border); margin: 0; }
+
+/* Phone: every team becomes a card in the Extra Points table */
+@media (max-width: 700px) {
+  #shotsSection .table-wrap { overflow: visible; }
+  #shotsSection table, #shotsSection tbody, #shotsSection tr, #shotsSection td { display: block; width: 100%; }
+  #shotsSection thead { display: none; }
+  #shotsSection tbody tr { border: 1px solid var(--border); border-radius: 8px; margin: 0 0 0.75rem; padding: 0.4rem 0.6rem; background: var(--row-alt); }
+  #shotsSection tbody td { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;
+                           padding: 0.4rem 0; border: 0; text-align: right; }
+  #shotsSection tbody td::before { content: attr(data-label); font-size: 0.8rem; opacity: 0.8; text-align: left; }
+  #shotsSection tbody td[data-label=""]::before { display: none; }
+  #shotsSection tbody td:first-child { font-weight: 700; font-size: 1rem; border-bottom: 1px solid var(--border); }
+  #shotsSection tbody td.hidden { display: none !important; }
+  #shotsSection input[type="number"], #shotsSection input[type="text"], #shotsSection select { font-size: 16px; min-height: 2.4rem; }
+  #shotsSection input[type="checkbox"] { width: 1.5rem; height: 1.5rem; }
+  .step { width: 2.8rem; height: 2.6rem; }
+}
+
 /* Admin: checks panel */
 .check-item { display: flex; gap: 0.5rem; align-items: baseline; padding: 0.25rem 0; font-size: 0.85rem; }
 .check-icon { width: 1.1rem; text-align: center; flex: none; }

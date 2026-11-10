@@ -6,6 +6,7 @@
   let config = null;
   let teams  = [];
   let allScores = [];
+  let helperMode = false;   // helper accounts only see the Extra Points card
 
   // ---- DOM refs ----
   const loginSection  = document.getElementById('loginSection');
@@ -75,6 +76,10 @@
   const doubleQWrap       = document.getElementById('doubleQWrap');
   const doubleHint        = document.getElementById('doubleHint');
   const doubleOnLabel     = document.getElementById('doubleOnLabel');
+  const csvToggleBtn      = document.getElementById('csvToggleBtn');
+  const doubleEntry       = document.getElementById('doubleEntry');
+  const helperNoQuiz      = document.getElementById('helperNoQuiz');
+  const csvSection        = document.getElementById('csvSection');
   const dblHeader         = document.getElementById('dblHeader');
 
   const summarySection = document.getElementById('summarySection');
@@ -143,6 +148,9 @@
 
   signOutBtn.addEventListener('click', async function () {
     await db.auth.signOut();
+    helperMode = false;
+    document.body.classList.remove('helper-mode');
+    helperNoQuiz.classList.add('hidden');
     loginSection.classList.remove('hidden');
     dashboard.classList.add('hidden');
     signOutBtn.classList.add('hidden');
@@ -152,8 +160,15 @@
     loginSection.classList.add('hidden');
     dashboard.classList.remove('hidden');
     signOutBtn.classList.remove('hidden');
+    // Accounts with app_metadata.role = "helper" only get the Extra Points card
+    var { data: sess } = await db.auth.getSession();
+    var user = sess && sess.session && sess.session.user;
+    helperMode = !!(user && user.app_metadata && user.app_metadata.role === 'helper');
+    document.body.classList.toggle('helper-mode', helperMode);
     await loadConfig();
-    await loadArchive();
+    helperNoQuiz.classList.toggle('hidden', !(helperMode && teams.length === 0));
+    if (helperMode) shotsSection.classList.remove('collapsed');
+    else await loadArchive();
   }
 
   // ================================================================
@@ -540,6 +555,37 @@
   // (or when a team already has a note). Toggling just shows/hides cells, so typed values are kept.
   var adjustNotesOpen = false;
 
+  // Every entry field has a data-key. The value it had when drawn is remembered, so Save only
+  // writes fields that were actually changed here (another person's changes are not overwritten).
+  var entryBaseline = {};
+
+  function entryValue(el) { return el.type === 'checkbox' ? (el.checked ? '1' : '0') : el.value.trim(); }
+  function isEntryDirty(el) {
+    var k = el.getAttribute('data-key');
+    return k !== null && entryBaseline[k] !== undefined && entryBaseline[k] !== entryValue(el);
+  }
+  function recordBaseline() {
+    entryBaseline = {};
+    shotsSection.querySelectorAll('[data-key]').forEach(function (el) { entryBaseline[el.getAttribute('data-key')] = entryValue(el); });
+  }
+  function hasDirtyEntries() {
+    return Array.prototype.some.call(shotsSection.querySelectorAll('[data-key]'), isEntryDirty);
+  }
+
+  // On a phone each team row becomes a card; the labels come from the table header
+  function labelCells() {
+    var heads = Array.prototype.map.call(extrasEntryHead.querySelectorAll('th'), function (th) {
+      return th.textContent.replace('▾', '').trim();
+    });
+    shotsBody.querySelectorAll('tr').forEach(function (tr) {
+      Array.prototype.forEach.call(tr.children, function (td, i) { td.setAttribute('data-label', i === 0 ? '' : (heads[i] || '')); });
+    });
+  }
+
+  function entryAttrs(t, extra) {
+    return 'data-team-id="' + t.id + '" data-extra="' + extra + '" data-key="' + t.id + ':' + extra + '"';
+  }
+
   function renderShotsSection() {
     if (teams.length === 0) { shotsSection.classList.add('hidden'); return; }
     shotsSection.classList.remove('hidden');
@@ -549,7 +595,7 @@
     bonusSummary.innerHTML = lines.length
       ? lines.map(function (l) { return escHtml(l); }).join('<br>')
       : 'No extra points are enabled.';
-    bonusDesc.textContent = 'Drinking, tickets, the bet and free adjustments are entered here. Bet: leave the guess empty if the team did not bet. The multiplied question is set per round in Enter Scores. An adjustment (e.g. -3 for phone use) shows to players only when it is not 0.';
+    bonusDesc.textContent = 'Drinking, tickets, the bet and free adjustments are entered here. Bet: leave the guess empty if the team did not bet. An adjustment (e.g. -3 for phone use) shows to players only when it is not 0. The multiplied question is marked per round in Enter Scores; its points can be entered below.';
 
     var head = '<tr><th>Team</th>';
     if (ex.drinking.enabled) head += '<th class="text-center">' + escHtml(ex.drinking.label) + '</th>';
@@ -559,9 +605,9 @@
       head += ex.bet.round ? '<th class="text-center">Bet guess (round ' + ex.bet.round + ')</th>'
                            : '<th class="text-center">Bet round</th><th class="text-center">Bet guess</th>';
     }
-    if (ex.double.enabled) head += '<th class="text-center" title="Set per round in Enter Scores">' + ex.double.mult + 'x</th>';
+    if (ex.double.enabled) head += '<th class="text-center" title="Entered in the ' + ex.double.mult + 'x table below or per round in Enter Scores">' + ex.double.mult + 'x</th>';
     var showNote = adjustNotesOpen || teams.some(function (t) { return t.extras && t.extras.adjust_note; });
-    head += '<th class="text-center adj-head" style="cursor:pointer;" title="Click to show/hide the note column">Adjustment <span style="opacity:0.6;">\u25BE</span></th>'
+    head += '<th class="text-center adj-head" style="cursor:pointer;" title="Click to show/hide the note column">Adjustment <span style="opacity:0.6;">▾</span></th>'
       + '<th class="text-center adj-note-cell' + (showNote ? '' : ' hidden') + '">Adjustment note</th>';
     head += '<th class="text-center">Extra total</th></tr>';
     extrasEntryHead.innerHTML = head;
@@ -574,27 +620,29 @@
       if (ex.drinking.enabled) {
         var v = t.shots_bonus || 0;
         html += '<td class="text-center">' + (ex.drinking.mode === 'count'
-          ? '<input type="number" class="score-input" data-team-id="' + t.id + '" data-extra="drinking" min="0" max="' + ex.drinking.max + '" step="1" value="' + v + '">'
-          : '<input type="checkbox" data-team-id="' + t.id + '" data-extra="drinking"' + (v ? ' checked' : '') + '>') + '</td>';
+          ? '<span class="stepper"><button type="button" class="step" data-dir="-1" aria-label="minus one">−</button>'
+            + '<input type="number" class="score-input" ' + entryAttrs(t, 'drinking') + ' min="0" max="' + ex.drinking.max + '" step="1" value="' + v + '">'
+            + '<button type="button" class="step" data-dir="1" aria-label="plus one">+</button></span>'
+          : '<input type="checkbox" ' + entryAttrs(t, 'drinking') + (v ? ' checked' : '') + '>') + '</td>';
       }
-      if (ex.ticket.enabled) html += '<td class="text-center"><input type="checkbox" data-team-id="' + t.id + '" data-extra="ticket"' + (te.ticket ? ' checked' : '') + '></td>';
-      if (ex.party.enabled)  html += '<td class="text-center"><input type="checkbox" data-team-id="' + t.id + '" data-extra="party"' + (te.party ? ' checked' : '') + '></td>';
+      if (ex.ticket.enabled) html += '<td class="text-center"><input type="checkbox" ' + entryAttrs(t, 'ticket') + (te.ticket ? ' checked' : '') + '></td>';
+      if (ex.party.enabled)  html += '<td class="text-center"><input type="checkbox" ' + entryAttrs(t, 'party') + (te.party ? ' checked' : '') + '></td>';
       if (ex.bet.enabled) {
         var bet = te.bet || {};
         if (!ex.bet.round) {
-          html += '<td class="text-center"><input type="number" class="score-input" data-team-id="' + t.id + '" data-extra="betRound" min="1" max="' + config.rounds + '" step="1" value="' + (bet.round || '') + '"></td>';
+          html += '<td class="text-center"><input type="number" class="score-input" ' + entryAttrs(t, 'betRound') + ' min="1" max="' + config.rounds + '" step="1" value="' + (bet.round || '') + '"></td>';
         }
-        html += '<td class="text-center"><input type="number" class="score-input" data-team-id="' + t.id + '" data-extra="betGuess" min="0" max="' + config.questions_per_round + '" step="0.5" value="' + (bet.guess !== undefined ? bet.guess : '') + '"></td>';
+        html += '<td class="text-center"><input type="number" class="score-input" ' + entryAttrs(t, 'betGuess') + ' min="0" max="' + config.questions_per_round + '" step="0.5" value="' + (bet.guess !== undefined ? bet.guess : '') + '"></td>';
       }
       if (ex.double.enabled) {
-        // Read-only: where it came from (entered per round in Enter Scores)
+        // Read-only here: the points are entered in the table below or in Enter Scores
         var dblParts = teamScoreRows(t).filter(function (s) { return ex.double.rounds[s.round_number] !== undefined && Number(s.double_points) > 0; })
           .sort(function (a, b) { return a.round_number - b.round_number; })
           .map(function (s) { return 'R' + s.round_number + ': ' + fmtExtra((ex.double.mult - 1) * Number(s.double_points)); });
         html += '<td class="text-center" style="opacity:0.85;" title="' + attrEsc(dblParts.join(', ')) + '">' + fmtExtra(br.double) + '</td>';
       }
-      html += '<td class="text-center"><input type="number" class="score-input" data-team-id="' + t.id + '" data-extra="adjust" step="0.5" min="-100" max="100" placeholder="0" value="' + (te.adjust ? te.adjust : '') + '"></td>'
-        + '<td class="text-center adj-note-cell' + (showNote ? '' : ' hidden') + '"><input type="text" data-team-id="' + t.id + '" data-extra="adjustNote" maxlength="80" placeholder="reason (admin only)" style="width:150px;" value="' + attrEsc(te.adjust_note || '') + '"></td>';
+      html += '<td class="text-center"><input type="number" class="score-input" ' + entryAttrs(t, 'adjust') + ' step="0.5" min="-100" max="100" placeholder="0" value="' + (te.adjust ? te.adjust : '') + '"></td>'
+        + '<td class="text-center adj-note-cell' + (showNote ? '' : ' hidden') + '"><input type="text" ' + entryAttrs(t, 'adjustNote') + ' maxlength="80" placeholder="reason (admin only)" style="width:150px;" value="' + attrEsc(te.adjust_note || '') + '"></td>';
       var detail = [];
       if (ex.drinking.enabled && br.drinking) detail.push(ex.drinking.label + ' ' + fmtExtra(br.drinking));
       if (br.ticket) detail.push(ex.ticket.label + ' ' + fmtExtra(br.ticket));
@@ -607,11 +655,90 @@
         + (br.betPending ? ' <span style="opacity:0.6;">(bet pending)</span>' : '') + '</td></tr>';
     });
     shotsBody.innerHTML = html;
+    labelCells();
 
     var yesNoDrink = ex.drinking.enabled && ex.drinking.mode !== 'count';
     checkAllShotsBtn.classList.toggle('hidden', !yesNoDrink);
     checkAllShotsBtn.textContent = 'Check All';
+
+    renderDoubleEntry(ex);
+    recordBaseline();
   }
+
+  // Points each team got on the multiplied question, per marked round. Anyone with access to this
+  // card can enter them; marking which round/question is multiplied stays in Enter Scores.
+  function renderDoubleEntry(ex) {
+    if (!ex.double.enabled) { doubleEntry.classList.add('hidden'); doubleEntry.innerHTML = ''; return; }
+    doubleEntry.classList.remove('hidden');
+    var rounds = Object.keys(ex.double.rounds).map(Number).sort(function (a, b) { return a - b; });
+    var title = '<h3 style="font-size:0.95rem;margin:0 0 0.4rem;">' + ex.double.mult + 'x question points</h3>';
+    if (rounds.length === 0) {
+      doubleEntry.innerHTML = title + '<p style="font-size:0.8rem;opacity:0.7;">No round is marked as a ' + ex.double.mult
+        + 'x round yet. Mark it in Enter Scores (admin).</p>';
+      return;
+    }
+    var html = title + '<p style="font-size:0.8rem;opacity:0.7;margin-bottom:0.5rem;">Points each team got on the ' + ex.double.mult
+      + 'x question(s). A team can be entered once its round has been scored.</p>';
+    rounds.forEach(function (r) {
+      var qs = ex.double.rounds[r];
+      var count = Math.max(1, qs.length);
+      html += '<div class="dbl-round"><strong>Round ' + r + (qs.length ? ' (question' + (qs.length > 1 ? 's ' : ' ') + qs.join(', ') + ')' : '') + '</strong>';
+      teams.forEach(function (t) {
+        var row = teamScoreRows(t).find(function (s) { return s.round_number === r; });
+        html += '<label class="dbl-row"><span>' + escHtml(t.name) + teamFlag(t) + '</span>';
+        if (!row) {
+          html += '<span style="opacity:0.6;">not scored yet</span>';
+        } else {
+          var cur = Number(row.double_points) || 0;
+          var opts = [];
+          for (var v = 0; v <= count + 1e-9; v += 0.5) opts.push(v);
+          if (opts.indexOf(cur) === -1) opts.push(cur);
+          html += '<select data-team-id="' + t.id + '" data-round="' + r + '" data-key="dbl:' + t.id + ':' + r + '" style="width:auto;">'
+            + opts.map(function (o) { return '<option value="' + o + '"' + (o === cur ? ' selected' : '') + '>' + o + '</option>'; }).join('')
+            + '</select>';
+        }
+        html += '</label>';
+      });
+      html += '</div>';
+    });
+    html += '<button class="btn btn-primary" id="saveDoubleBtn" style="margin-top:0.5rem;">Save ' + ex.double.mult + 'x points</button>';
+    doubleEntry.innerHTML = html;
+  }
+
+  // Reload teams + scores and redraw everything that shows extras
+  async function refreshExtrasData() {
+    var t = await db.from('teams').select('*').order('name');
+    var s = await db.from('scores').select('*');
+    if (t.error || s.error) throw (t.error || s.error);
+    teams = t.data || [];
+    allScores = s.data || [];
+    renderShotsSection();
+    renderSummary();
+    renderChecks();
+  }
+
+  doubleEntry.addEventListener('click', async function (e) {
+    var btn = e.target.closest('#saveDoubleBtn');
+    if (!btn) return;
+    var dirty = Array.prototype.filter.call(doubleEntry.querySelectorAll('select[data-round]'), isEntryDirty);
+    if (dirty.length === 0) { showMsg(shotsMsg, 'No changes to save.', 'info'); return; }
+    btn.disabled = true;
+    try {
+      for (var i = 0; i < dirty.length; i++) {
+        var el = dirty[i];
+        var { error } = await db.from('scores').update({ double_points: parseFloat(el.value) })
+          .eq('team_id', el.getAttribute('data-team-id')).eq('round_number', parseInt(el.getAttribute('data-round'), 10));
+        if (error) { showMsg(shotsMsg, error.message, 'error'); return; }
+      }
+      await refreshExtrasData();
+      showMsg(shotsMsg, dirty.length + ' point value' + (dirty.length === 1 ? '' : 's') + ' saved.', 'success');
+    } catch (err) {
+      showMsg(shotsMsg, err.message || String(err), 'error');
+    } finally {
+      var again = doubleEntry.querySelector('#saveDoubleBtn');
+      if (again) again.disabled = false;
+    }
+  });
 
   function setAdjustNotes(open) {
     adjustNotesOpen = open;
@@ -624,6 +751,17 @@
   });
   shotsBody.addEventListener('focusin', function (e) {
     if (e.target.matches('[data-extra="adjust"]')) setAdjustNotes(true);
+  });
+
+  // +/- buttons next to the drinking count (easier on a phone)
+  shotsBody.addEventListener('click', function (e) {
+    var btn = e.target.closest('.step');
+    if (!btn) return;
+    var input = btn.parentNode.querySelector('input');
+    var min = parseFloat(input.min) || 0, max = parseFloat(input.max);
+    var v = (parseFloat(input.value) || 0) + parseInt(btn.getAttribute('data-dir'), 10);
+    v = Math.max(min, isNaN(max) ? v : Math.min(max, v));
+    input.value = v;
   });
 
   var checkAllShotsBtn = document.getElementById('checkAllShotsBtn');
@@ -639,19 +777,39 @@
 
   saveShotsBtn.addEventListener('click', async function () {
     var ex = extrasSettings(config);
-    var updates = [];
-    for (var i = 0; i < teams.length; i++) {
-      var t = teams[i];
-      function field(name) { return shotsBody.querySelector('[data-team-id="' + t.id + '"][data-extra="' + name + '"]'); }
-      var payload = {};
+    var dirtyEls = Array.prototype.filter.call(shotsBody.querySelectorAll('[data-key]'), isEntryDirty);
+    if (dirtyEls.length === 0) { showMsg(shotsMsg, 'No changes to save.', 'info'); return; }
 
-      if (ex.drinking.enabled) {
+    // Which fields of which teams were changed here
+    var changes = {};
+    dirtyEls.forEach(function (el) {
+      var id = el.getAttribute('data-team-id'), f = el.getAttribute('data-extra');
+      (changes[id] = changes[id] || {})[f] = true;
+    });
+
+    // Start from what is in the database now, so another person's changes are kept
+    var { data: fresh, error: fErr } = await db.from('teams').select('*');
+    if (fErr) { showMsg(shotsMsg, fErr.message, 'error'); return; }
+    var freshById = {};
+    (fresh || []).forEach(function (t) { freshById[t.id] = t; });
+
+    var updates = [];
+    var ids = Object.keys(changes);
+    for (var i = 0; i < ids.length; i++) {
+      var id = ids[i], ch = changes[id], t = freshById[id];
+      if (!t) continue;   // team was removed meanwhile
+      var field = function (name) { return shotsBody.querySelector('[data-team-id="' + id + '"][data-extra="' + name + '"]'); };
+      var payload = {};
+      var merged = Object.assign({}, (t.extras && typeof t.extras === 'object') ? t.extras : {});
+      var extrasChanged = false;
+
+      if (ch.drinking) {
         var d = field('drinking'), val;
         if (ex.drinking.mode === 'count') {
           var raw = d.value.trim();
           val = raw === '' ? 0 : Number(raw);
           if (!Number.isInteger(val) || val < 0 || val > ex.drinking.max) {
-            showMsg(shotsMsg, ex.drinking.label + ': enter a whole number from 0 to ' + ex.drinking.max + ' for every team.', 'error');
+            showMsg(shotsMsg, t.name + ' - ' + ex.drinking.label + ': enter a whole number from 0 to ' + ex.drinking.max + '.', 'error');
             return;
           }
         } else {
@@ -659,31 +817,32 @@
         }
         payload.shots_bonus = val;
       }
+      if (ch.ticket) { merged.ticket = field('ticket').checked ? 1 : 0; extrasChanged = true; }
+      if (ch.party)  { merged.party  = field('party').checked ? 1 : 0;  extrasChanged = true; }
 
-      {
-        var merged = Object.assign({}, (t.extras && typeof t.extras === 'object') ? t.extras : {});
-        if (ex.ticket.enabled) merged.ticket = field('ticket').checked ? 1 : 0;
-        if (ex.party.enabled)  merged.party  = field('party').checked ? 1 : 0;
-        if (ex.bet.enabled) {
-          // Empty guess = the team did not bet (nothing won or lost)
-          var fixedR = ex.bet.round;
-          var rEl = field('betRound');
-          var rRaw = rEl ? rEl.value.trim() : '';
-          var gRaw = field('betGuess').value.trim();
-          if (gRaw === '' && rRaw === '') {
-            delete merged.bet;
-          } else {
-            var br = fixedR || Number(rRaw), bg = Number(gRaw);
-            var roundBad = !fixedR && (rRaw === '' || !Number.isInteger(br) || br < 1 || br > config.rounds);
-            if (gRaw === '' || roundBad || isNaN(bg) || bg < 0 || bg > config.questions_per_round || (bg * 2) % 1 !== 0) {
-              showMsg(shotsMsg, 'Bet for "' + t.name + '": ' + (fixedR ? '' : 'enter a round 1-' + config.rounds + ' and ')
-                + 'a guess 0-' + config.questions_per_round + ' in steps of 0.5 (or clear it to mean no bet).', 'error');
-              return;
-            }
-            merged.bet = { round: br, guess: bg };
+      if (ch.betRound || ch.betGuess) {
+        // Empty guess = the team did not bet (nothing won or lost)
+        var fixedR = ex.bet.round;
+        var rEl = field('betRound');
+        var rRaw = rEl ? rEl.value.trim() : '';
+        var gRaw = field('betGuess').value.trim();
+        if (gRaw === '' && rRaw === '') {
+          delete merged.bet;
+        } else {
+          var br = fixedR || Number(rRaw), bg = Number(gRaw);
+          var roundBad = !fixedR && (rRaw === '' || !Number.isInteger(br) || br < 1 || br > config.rounds);
+          if (gRaw === '' || roundBad || isNaN(bg) || bg < 0 || bg > config.questions_per_round || (bg * 2) % 1 !== 0) {
+            showMsg(shotsMsg, 'Bet for "' + t.name + '": ' + (fixedR ? '' : 'enter a round 1-' + config.rounds + ' and ')
+              + 'a guess 0-' + config.questions_per_round + ' in steps of 0.5 (or clear it to mean no bet).', 'error');
+            return;
           }
+          merged.bet = { round: br, guess: bg };
         }
-        // Free adjustment (always available): +/- points with an admin-only note
+        extrasChanged = true;
+      }
+
+      if (ch.adjust || ch.adjustNote) {
+        // Free adjustment: +/- points with an admin-only note
         var aRaw = field('adjust').value.trim();
         var aNum = aRaw === '' ? 0 : Number(aRaw);
         if (isNaN(aNum) || aNum < -100 || aNum > 100 || (aNum * 2) % 1 !== 0) {
@@ -693,29 +852,54 @@
         if (aNum !== 0) merged.adjust = aNum; else delete merged.adjust;
         var aNote = field('adjustNote').value.trim();
         if (aNote && aNum !== 0) merged.adjust_note = aNote; else delete merged.adjust_note;
-        payload.extras = merged;
+        extrasChanged = true;
       }
-      updates.push({ id: t.id, payload: payload });
+
+      if (extrasChanged) payload.extras = merged;
+      if (Object.keys(payload).length) updates.push({ id: id, payload: payload });
     }
 
     saveShotsBtn.disabled = true;
-    for (var j = 0; j < updates.length; j++) {
-      if (Object.keys(updates[j].payload).length === 0) continue;
-      var { error } = await db.from('teams').update(updates[j].payload).eq('id', updates[j].id);
-      if (error) {
-        showMsg(shotsMsg, error.message, 'error');
-        saveShotsBtn.disabled = false;
-        return;
+    try {
+      for (var j = 0; j < updates.length; j++) {
+        var { error } = await db.from('teams').update(updates[j].payload).eq('id', updates[j].id);
+        if (error) { showMsg(shotsMsg, error.message, 'error'); return; }
       }
+      await refreshExtrasData();
+      showMsg(shotsMsg, 'Extra points saved (' + updates.length + ' team' + (updates.length === 1 ? '' : 's') + ').', 'success');
+    } catch (err) {
+      showMsg(shotsMsg, err.message || String(err), 'error');
+    } finally {
+      saveShotsBtn.disabled = false;
     }
-    saveShotsBtn.disabled = false;
-    var { data: tt } = await db.from('teams').select('*').order('name');
-    teams = tt || [];
-    renderShotsSection();
-    renderSummary();
-    renderChecks();
-    showMsg(shotsMsg, 'Extra points saved.', 'success');
   });
+
+  // Keep the extras view fresh while two people work at once (skipped while typing or unsaved)
+  var pollBusy = false;
+  async function pollExtras() {
+    if (pollBusy || !config || teams.length === 0 || document.hidden) return;
+    if (shotsSection.classList.contains('hidden') || teamsEditing) return;
+    if (shotsBody.contains(document.activeElement) || doubleEntry.contains(document.activeElement) || hasDirtyEntries()) return;
+    pollBusy = true;
+    try {
+      var c = await db.from('quiz_config').select('*').eq('id', 1).maybeSingle();
+      var t = await db.from('teams').select('*').order('name');
+      var s = await db.from('scores').select('*');
+      if (c.error || t.error || s.error || !c.data) return;
+      if (JSON.stringify(c.data) === JSON.stringify(config)
+          && JSON.stringify(t.data) === JSON.stringify(teams)
+          && JSON.stringify(s.data) === JSON.stringify(allScores)) return;
+      config = c.data;
+      teams = t.data || [];
+      allScores = s.data || [];
+      updatePublishStatus();
+      renderShotsSection();
+      renderChecks();
+    } finally {
+      pollBusy = false;
+    }
+  }
+  setInterval(pollExtras, 10000);
 
   // Has the quiz already started? (anything scored, published or bonus given)
   function quizHasStarted() {
@@ -839,11 +1023,12 @@
 
     var parsedTeams = [];
     for (var i = 0; i < lines.length; i++) {
-      var parts = lines[i].split(',');
-      var tName = parts[0].trim();
-      var count = parts.length > 1 ? parseInt(parts[parts.length - 1].trim(), 10) : 1;
+      // The player count is after the LAST comma, so a team name may contain commas
+      var lastComma = lines[i].lastIndexOf(',');
+      var tName = lastComma === -1 ? lines[i].trim() : lines[i].slice(0, lastComma).trim();
+      var count = lastComma === -1 ? 1 : parseInt(lines[i].slice(lastComma + 1).trim(), 10);
       if (!tName) { showMsg(setupMsg, 'Empty team name on line ' + (i + 1) + '.', 'error'); return; }
-      if (isNaN(count) || count < 1) { showMsg(setupMsg, 'Invalid player count on line ' + (i + 1) + '. Use: Name, Number', 'error'); return; }
+      if (isNaN(count) || count < 1) { showMsg(setupMsg, 'Invalid player count on line ' + (i + 1) + '. Use: Name, Number (the number after the last comma).', 'error'); return; }
       parsedTeams.push({ name: tName, player_count: count });
     }
 
@@ -1069,6 +1254,8 @@
       return;
     }
 
+    var dblUpdates = [];   // 2x points changed in this table
+
     // Determine which teams get tipovacka
     var tipTeamIds = {};
     if (hasTip) {
@@ -1097,9 +1284,13 @@
         tipovacka_point: (hasTip && tipTeamIds[teamId]) ? 1 : 0,
         updated_at: new Date().toISOString()
       };
-      if (exs.double.enabled) {
+      // Points on the multiplied question are written separately and only when changed here,
+      // so this save never overwrites values someone else entered meanwhile
+      if (wantDouble) {
         var dsel = tr.querySelector('.dbl-select');
-        scoreRow.double_points = (wantDouble && dsel) ? parseFloat(dsel.value) : 0;
+        if (dsel && (parseFloat(dsel.value) || 0) !== (parseFloat(dsel.getAttribute('data-val')) || 0)) {
+          dblUpdates.push({ teamId: teamId, value: parseFloat(dsel.value) || 0 });
+        }
       }
       rows.push(scoreRow);
     });
@@ -1128,6 +1319,16 @@
     saveRoundBtn.disabled = false;
 
     if (error) { showMsg(scoreMsg, error.message, 'error'); return; }
+    if (exs.double.enabled) {
+      if (wasDouble && !wantDouble) {
+        await db.from('scores').update({ double_points: 0 }).eq('round_number', rn);   // round no longer multiplied
+      }
+      for (var du = 0; du < dblUpdates.length; du++) {
+        var { error: dErr } = await db.from('scores').update({ double_points: dblUpdates[du].value })
+          .eq('team_id', dblUpdates[du].teamId).eq('round_number', rn);
+        if (dErr) { showMsg(scoreMsg, dErr.message, 'error'); return; }
+      }
+    }
     showMsg(scoreMsg, 'Round ' + rn + ' saved.', 'success');
     await loadAllScores();
   });
@@ -1151,6 +1352,11 @@
     text = csvText.value.trim();
     if (!text) { showMsg(scoreMsg, 'No CSV data provided.', 'error'); return; }
     parseAndFillCsv(text);
+  });
+
+  csvToggleBtn.addEventListener('click', function () {
+    var hidden = csvSection.classList.toggle('hidden');
+    csvToggleBtn.textContent = hidden ? 'Show CSV import' : 'Hide CSV import';
   });
 
   // Parse a CSV line respecting quoted fields (e.g. "3,5" for European 3.5)
@@ -1260,7 +1466,7 @@
     var exSum = extrasSettings(config), byTeamSum = scoresByTeam(allScores);
     teams.forEach(function (t) {
       var brs = teamExtraBreakdown(t, byTeamSum[t.id] || [], exSum);
-      map[t.id] = { name: t.name, flag: teamFlag(t), extra: brs.total, rounds: {}, total: brs.total };
+      map[t.id] = { name: t.name, flag: teamFlag(t), players: t.player_count || 1, extra: brs.total, rounds: {}, total: brs.total };
     });
     allScores.forEach(function (s) {
       if (!map[s.team_id]) return;
@@ -1269,7 +1475,11 @@
       map[s.team_id].total += pts;
     });
 
-    var list = Object.values(map).sort(function (a, b) { return b.total - a.total; });
+    var list = Object.values(map).sort(function (a, b) {
+      if (a.total !== b.total) return b.total - a.total;
+      if (a.players !== b.players) return a.players - b.players;
+      return a.extra - b.extra;
+    });
 
     var bHtml = '';
     list.forEach(function (t) {
@@ -1316,7 +1526,8 @@
     var list = Object.values(map);
     list.sort(function (a, b) {
       if (a.total !== b.total) return b.total - a.total;
-      return a.players - b.players;
+      if (a.players !== b.players) return a.players - b.players;
+      return a.extra - b.extra;   // fewer extra points = more points from the rounds
     });
     return list;
   }
@@ -1324,14 +1535,16 @@
   function computeExportRanks(standings) {
     var sorted = standings.slice().sort(function (a, b) {
       if (a.total !== b.total) return b.total - a.total;
-      return a.players - b.players;
+      if (a.players !== b.players) return a.players - b.players;
+      return a.extra - b.extra;
     });
     var nums = [];
     for (var i = 0; i < sorted.length; i++) {
       if (i === 0) {
         nums.push(1);
       } else if (sorted[i].total === sorted[i - 1].total &&
-                 sorted[i].players === sorted[i - 1].players) {
+                 sorted[i].players === sorted[i - 1].players &&
+                 sorted[i].extra === sorted[i - 1].extra) {
         nums.push(nums[i - 1]);
       } else {
         nums.push(i + 1);
@@ -1449,9 +1662,11 @@
       if (ex.double.enabled && ex.double.rounds[r] !== undefined) { roundCol[r].dbl = header.length; addCol('R' + r + ' ' + ex.double.mult + 'x bonus' + (ex.double.rounds[r].length ? ' (Q' + ex.double.rounds[r].join('+') + ')' : ''), true); }
     }
     var totalCol = header.length;
-    var rankCol = totalCol + 1;
-    var keyCol = totalCol + 2;
+    var extraCol = totalCol + 1;
+    var rankCol = totalCol + 2;
+    var keyCol = totalCol + 3;
     header.push('Total');
+    header.push('Extra');
     header.push('Rank');
     header.push('Sort key (helper)');
 
@@ -1459,9 +1674,11 @@
     var first = 2, last = n + 1; // Excel rows (1 = header)
     var totalRange = colLetter(totalCol) + first + ':' + colLetter(totalCol) + last;
     var playersRange = 'B' + first + ':B' + last;
+    var extraRange = colLetter(extraCol) + first + ':' + colLetter(extraCol) + last;
 
     var rows = [header];
     var totals = [];
+    var extrasArr = [];
     teams.forEach(function (t) {
       var players = t.player_count || 1;
       var row = [];
@@ -1497,28 +1714,40 @@
         if (roundCol[rn].dbl !== undefined) row[roundCol[rn].dbl] = (ex.double.mult - 1) * (Number(s.double_points) || 0);
       }
       totals.push(total);
+      extrasArr.push(br.total);
       row[totalCol] = total; // replaced by a formula cell below
       rows.push(row);
     });
 
-    // Compute ranks (same rule as standings: points desc, fewer players first)
+    // Rank rule: most total points; if tied, fewer players; if still tied, fewer extra points
+    // (= more points from the rounds). Same rule as the public standings.
     rows.slice(1).forEach(function (row, i) {
       var t = teams[i];
       var players = t.player_count || 1;
       var rank = 1;
       teams.forEach(function (o, j) {
         var op = o.player_count || 1;
-        if (totals[j] > totals[i] || (totals[j] === totals[i] && op < players)) rank++;
+        if (totals[j] > totals[i]
+            || (totals[j] === totals[i] && op < players)
+            || (totals[j] === totals[i] && op === players && extrasArr[j] < extrasArr[i])) rank++;
       });
       var xr = i + 2; // Excel row
       var totalF = 'SUM(C' + xr + ':' + colLetter(totalCol - 1) + xr + ')';
-      var tc = colLetter(totalCol);
+      // Extra = everything except the round points: the extra columns plus the 2x bonus cells
+      var extraF = 'SUM(C' + xr + ':' + colLetter(col.adjustNote) + xr + ')';
+      Object.keys(roundCol).forEach(function (rk) {
+        if (roundCol[rk].dbl !== undefined) extraF += '+' + colLetter(roundCol[rk].dbl) + xr;
+      });
+      var tc = colLetter(totalCol), ec = colLetter(extraCol);
       var rankF = '1+COUNTIF(' + totalRange + ',">"&' + tc + xr + ')'
-        + '+COUNTIFS(' + totalRange + ',' + tc + xr + ',' + playersRange + ',"<"&B' + xr + ')';
-      // Unique sort key: points desc, then fewer players, then sheet order
-      var keyF = tc + xr + '*100000-B' + xr + '*100-ROW()/1000';
-      var keyV = totals[i] * 100000 - players * 100 - xr / 1000;
+        + '+COUNTIFS(' + totalRange + ',' + tc + xr + ',' + playersRange + ',"<"&B' + xr + ')'
+        + '+COUNTIFS(' + totalRange + ',' + tc + xr + ',' + playersRange + ',B' + xr + ',' + extraRange + ',"<"&' + ec + xr + ')';
+      // Unique sort key: points desc, then fewer players (up to 99), then fewer extra points
+      // (between -199 and 200), then sheet order (up to 499 teams). Kept small so spreadsheets don't round it.
+      var keyF = tc + xr + '*100000-B' + xr + '*500-(' + ec + xr + '+200)-ROW()/1000';
+      var keyV = totals[i] * 100000 - players * 500 - (extrasArr[i] + 200) - xr / 1000;
       row[totalCol] = { t: 'n', v: totals[i], f: totalF };
+      row[extraCol] = { t: 'n', v: extrasArr[i], f: extraF };
       row[rankCol]  = { t: 'n', v: rank, f: rankF };
       row[keyCol]   = { t: 'n', v: keyV, f: keyF };
     });

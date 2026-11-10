@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin — Pub Quiz Scoreboard</title>
-  <link rel="stylesheet" href="css/style.css?v=20261110c">
+  <link rel="stylesheet" href="css/style.css?v=20261111a">
 </head>
 <body>
 
@@ -32,6 +32,8 @@
   <!-- Dashboard (hidden until auth) -->
   <div id="dashboard" class="container hidden" style="padding-top:1.5rem;">
 
+    <p id="helperNoQuiz" class="hidden" style="text-align:center;margin-top:1rem;">No quiz is set up yet. Ask the admin to set one up.</p>
+
     <!-- Quiz Setup -->
     <div id="setupSection" class="card hidden">
       <h2>Quiz Setup</h2>
@@ -53,7 +55,7 @@
       <label>Extra points (besides the questions)</label>
       <div id="setupExtrasBox" style="margin-bottom:0.75rem;"></div>
 
-      <label for="setupTeams">Teams — one per line: Name, PlayerCount</label>
+      <label for="setupTeams">Teams — one per line: Name, PlayerCount (a comma inside the name is fine; the last comma separates the player count)</label>
       <textarea id="setupTeams" rows="8" placeholder="Team Alpha, 5&#10;Team Beta, 4&#10;Team Gamma, 6"></textarea>
 
       <button class="btn btn-primary" id="setupSaveBtn">Save Setup</button>
@@ -103,7 +105,8 @@
         </div>
 
         <!-- CSV Import -->
-        <div class="csv-section" style="margin-top:0;">
+        <button class="btn btn-secondary" id="csvToggleBtn" style="margin-bottom:0.75rem;font-size:0.75rem;">Show CSV import</button>
+        <div class="csv-section hidden" id="csvSection" style="margin-top:0;">
           <h2>CSV Import</h2>
           <p style="font-size:0.8rem;margin-bottom:0.5rem;">
             Format: team name, standard points[, tipovacka 0/1]. One row per team.
@@ -189,6 +192,9 @@
           <button class="btn btn-primary" id="saveShotsBtn">Save</button>
           <button class="btn btn-secondary" id="checkAllShotsBtn">Check All</button>
         </div>
+
+        <!-- Points on the multiplied question, per marked round -->
+        <div id="doubleEntry" class="hidden" style="margin-top:1.25rem;"></div>
       </div>
     </div>
 
@@ -272,9 +278,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js"></script>
-  <script src="config.js?v=20261110c"></script>
-  <script src="js/supabase.js?v=20261110c"></script>
-  <script src="js/bonus.js?v=20261110c"></script>
-  <script src="js/admin.js?v=20261110c"></script>
+  <script src="config.js?v=20261111a"></script>
+  <script src="js/supabase.js?v=20261111a"></script>
+  <script src="js/bonus.js?v=20261111a"></script>
+  <script src="js/admin.js?v=20261111a"></script>
 </body>
 </html>

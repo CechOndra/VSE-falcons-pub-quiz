@@ -116,8 +116,10 @@
         if (aVal !== bVal) return (bVal - aVal) * dir;
         // Tiebreak by total if sorting by round
         if (col !== 'total' && a.total !== b.total) return b.total - a.total;
-        // Tiebreak by fewer players (fewer = higher rank)
-        return a.players - b.players;
+        // Tiebreak by fewer players (fewer = higher rank), then by fewer extra points
+        // (= more points from the rounds and tipovacka)
+        if (a.players !== b.players) return a.players - b.players;
+        return a.extra - b.extra;
       });
     }
     return list;
@@ -152,14 +154,16 @@
     // Sort a copy by total desc, then fewer players
     var sorted = standings.slice().sort(function (a, b) {
       if (a.total !== b.total) return b.total - a.total;
-      return a.players - b.players;
+      if (a.players !== b.players) return a.players - b.players;
+      return a.extra - b.extra;   // fewer extra points = more points from the rounds
     });
     var nums = [];
     for (var i = 0; i < sorted.length; i++) {
       if (i === 0) {
         nums.push(1);
       } else if (sorted[i].total === sorted[i - 1].total &&
-                 sorted[i].players === sorted[i - 1].players) {
+                 sorted[i].players === sorted[i - 1].players &&
+                 sorted[i].extra === sorted[i - 1].extra) {
         nums.push(nums[i - 1]);
       } else {
         nums.push(i + 1);
