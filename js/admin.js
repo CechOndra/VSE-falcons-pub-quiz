@@ -104,6 +104,7 @@
   const archiveList     = document.getElementById('archiveList');
   const exportBtn       = document.getElementById('exportBtn');
   const podiumBtn       = document.getElementById('podiumBtn');
+  const podiumRound     = document.getElementById('podiumRound');
   const exportMsg       = document.getElementById('exportMsg');
 
   // ---- Helpers ----
@@ -1454,7 +1455,7 @@
     }
 
     // Header
-    var hHtml = '<tr><th>Team</th>';
+    var hHtml = '<tr><th>#</th><th>Team</th>';
     rounds.forEach(function (r) { hHtml += '<th class="text-center">R' + r + '</th>'; });
     hHtml += '<th class="text-center">Extra</th>';
     hHtml += '<th class="text-right">Total</th></tr>';
@@ -1482,9 +1483,20 @@
       return a.extra - b.extra;
     });
 
+    // Rank: same tie rule as the public page (total, then fewer players, then fewer extra points)
+    var rankLabel = [], rankNum = [];
+    list.forEach(function (t, i) {
+      var p = list[i - 1];
+      rankNum[i] = (i > 0 && p.total === t.total && p.players === t.players && p.extra === t.extra) ? rankNum[i - 1] : i + 1;
+    });
+    list.forEach(function (t, i) {
+      var tied = rankNum.filter(function (n) { return n === rankNum[i]; }).length > 1;
+      rankLabel[i] = (tied ? 'T-' : '') + rankNum[i];
+    });
+
     var bHtml = '';
-    list.forEach(function (t) {
-      bHtml += '<tr><td>' + escHtml(t.name) + t.flag + '</td>';
+    list.forEach(function (t, i) {
+      bHtml += '<tr><td>' + rankLabel[i] + '</td><td>' + escHtml(t.name) + t.flag + '</td>';
       rounds.forEach(function (r) {
         var rd = t.rounds[r];
         if (!rd) {
@@ -2018,8 +2030,8 @@
   //  PODIUM PICTURE (16:9 PNG of the published top places)
   // ================================================================
 
-  function podiumGroups() {
-    var pub = config.published_rounds || 0;
+  function podiumGroups(upTo) {
+    var pub = upTo;
     var exs = extrasSettings(config);
     var rows = allScores.filter(function (s) { return s.round_number <= pub; });
     var byTeam = scoresByTeam(rows);
@@ -2129,19 +2141,25 @@
   }
 
   podiumBtn.addEventListener('click', function () {
-    var pub = config ? (config.published_rounds || 0) : 0;
     if (!config || teams.length === 0) { showMsg(exportMsg, 'No quiz set up yet.', 'error'); return; }
-    if (pub === 0) { showMsg(exportMsg, 'Publish a round first. The picture shows the published standings.', 'error'); return; }
+    var pub = config.published_rounds || 0;
+    // Standings are built from ALL saved scores up to the chosen round (published or not)
+    var lastScored = 0;
+    allScores.forEach(function (s) { if (s.round_number > lastScored) lastScored = s.round_number; });
+    var n = parseInt(podiumRound.value, 10);
+    if (!n) n = lastScored;
+    if (n < 1 || n > config.rounds) { showMsg(exportMsg, 'Round number must be between 1 and ' + config.rounds + '.', 'error'); return; }
+    if (!allScores.some(function (s) { return s.round_number <= n; })) { showMsg(exportMsg, 'There are no saved scores up to round ' + n + '.', 'error'); return; }
     try {
-      var groups = podiumGroups();
-      var cv = drawPodium(groups, pub);
+      var groups = podiumGroups(n);
+      var cv = drawPodium(groups, n);
       var today = new Date().toISOString().slice(0, 10);
       var name = exportName.value.trim().replace(/[\/:*?"<>|]+/g, '').replace(/\s+/g, '-') || 'pub-quiz';
-      var fname = name + '_podium_' + (pub >= config.rounds ? 'FINAL' : 'round-' + pub + '-of-' + config.rounds) + '_' + today + '.png';
+      var fname = name + '_podium_' + (n >= config.rounds ? 'FINAL' : 'round-' + n + '-of-' + config.rounds) + '_' + today + '.png';
       cv.toBlob(function (blob) {
         if (!blob) { showMsg(exportMsg, 'Could not create the picture.', 'error'); return; }
         triggerDownload(blob, fname);
-        showMsg(exportMsg, 'Podium picture downloaded (shows the published standings after round ' + pub + ').', 'success');
+        showMsg(exportMsg, 'Podium picture downloaded: standings after round ' + n + (n > pub ? ' (includes rounds that are NOT published yet)' : '') + '.', 'success');
       }, 'image/png');
     } catch (e) {
       showMsg(exportMsg, 'Podium picture failed: ' + e.message, 'error');
